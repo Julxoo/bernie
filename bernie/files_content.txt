@@ -1,0 +1,1858 @@
+===== tailwind.config.ts =====
+Chemin : ./tailwind.config.ts
+import type { Config } from "tailwindcss";
+
+const config = {
+  content: [
+    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}"
+  ],
+  theme: {
+    extend: {
+      colors: {
+        background: "var(--background)",
+        foreground: "var(--foreground)"
+      }
+    }
+  },
+  plugins: []
+} satisfies Config;
+
+export default config;
+
+
+===== postcss.config.js =====
+Chemin : ./postcss.config.js
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {}
+  }
+};
+
+
+===== tsconfig.json =====
+Chemin : ./tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "src/*"
+      ]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "next-env.d.ts",
+    "types/**/*.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "files_content.txt"
+  ]
+}
+
+
+===== next.config.mjs =====
+Chemin : ./next.config.mjs
+const nextConfig = {
+  reactStrictMode: true,
+};
+
+export default nextConfig;
+
+
+===== listfiles.py =====
+Chemin : ./listfiles.py
+import os
+
+def get_files_content(directory, excluded_files):
+    files_data = []
+    
+    for root, dirs, files in os.walk(directory):
+        # Exclure certains dossiers pour éviter de parcourir des répertoires non désirés
+        dirs[:] = [d for d in dirs if os.path.join(root, d) not in excluded_files]
+        
+        for file in files:
+            file_path = os.path.join(root, file)
+            # Si le chemin complet du fichier est dans la liste d'exclusion, on passe au suivant
+            if file_path in excluded_files:
+                continue
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                files_data.append({"name": file, "path": file_path, "content": content})
+            except Exception as e:
+                print(f"Erreur lors de la lecture du fichier {file_path}: {e}")
+    
+    return files_data
+
+def save_to_text(data, output_file):
+    with open(output_file, 'w', encoding='utf-8') as f:
+        for file in data:
+            f.write(f"===== {file['name']} =====\n")
+            f.write(f"Chemin : {file['path']}\n")
+            f.write(file['content'] + "\n\n")
+
+if __name__ == "__main__":
+    directory = "./"
+    output_file = "files_content.txt"
+    
+    excluded_files = {
+        os.path.join(directory, ".env.local"),
+        os.path.join(directory, ".gitignore"),
+        os.path.join(directory, "eslint.config.mjs"),
+        os.path.join(directory, "next-env.d.ts"),
+        os.path.join(directory, "next.config.ts"),
+        os.path.join(directory, "package-lock.json"),
+        os.path.join(directory, "package.json"),
+        os.path.join(directory, "postcss.config.mjs"),
+        os.path.join(directory, "README.md"),
+        os.path.join(directory, ".next"),
+        os.path.join(directory, "node_modules"),
+        os.path.join(directory, "files_content.txt")  # Ajout pour éviter de relire le fichier de sortie
+    }
+    
+    if os.path.exists(directory):
+        files_content = get_files_content(directory, excluded_files)
+        save_to_text(files_content, output_file)
+        print(f"Les données ont été enregistrées dans {output_file}")
+    else:
+        print(f"Le dossier {directory} n'existe pas.")
+
+
+===== middleware.ts =====
+Chemin : ./src/middleware.ts
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next();
+  const supabase = createMiddlewareClient({ req, res });
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  // Si l'utilisateur n'est pas connecté et essaie d'accéder à une route protégée
+  if (!session && (req.nextUrl.pathname.startsWith('/dashboard') || req.nextUrl.pathname.startsWith('/api'))) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+
+  return res;
+}
+
+export const config = {
+  matcher: ['/dashboard/:path*', '/api/:path*'],
+}; 
+
+===== supabaseClient.ts =====
+Chemin : ./src/utils/supabaseClient.ts
+// ./src/utils/supabaseClient.ts
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    "Missing Supabase environment variables. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
+  );
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+
+===== Modal.tsx =====
+Chemin : ./src/components/ui/Modal.tsx
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+export default function Modal({ isOpen, onClose, children }: ModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Overlay */}
+      <div 
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      
+      {/* Modal Content */}
+      <div className="relative z-50 w-full max-w-md bg-[#171717] rounded-lg shadow-xl border border-[#424242] p-6">
+        {children}
+      </div>
+    </div>
+  );
+} 
+
+===== CreateCategoryForm.tsx =====
+Chemin : ./src/components/categories/CreateCategoryForm.tsx
+import { useState } from 'react';
+import { z } from 'zod';
+
+const categorySchema = z.object({
+  title: z.string().min(1, "Le titre est requis"),
+});
+
+interface CreateCategoryFormProps {
+  onSubmit: (data: z.infer<typeof categorySchema>) => Promise<void>;
+  onClose: () => void;
+}
+
+export default function CreateCategoryForm({ onSubmit, onClose }: CreateCategoryFormProps) {
+  const [title, setTitle] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const data = categorySchema.parse({ title });
+      await onSubmit(data);
+      onClose();
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        setError(err.errors[0].message);
+      } else {
+        setError("Une erreur est survenue");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <h2 className="text-xl font-semibold text-[#ECECEC] mb-4">Créer une nouvelle catégorie</h2>
+      
+      {error && (
+        <div className="text-red-500 text-sm mb-4">{error}</div>
+      )}
+
+      <div>
+        <label htmlFor="title" className="block text-sm font-medium text-[#ECECEC] mb-2">
+          Titre
+        </label>
+        <input
+          id="title"
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC] transition-colors duration-200"
+          placeholder="Nom de la catégorie"
+        />
+      </div>
+
+      <div className="flex justify-end space-x-3 mt-6">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 text-[#ECECEC] hover:text-gray-300 transition-colors duration-200"
+        >
+          Annuler
+        </button>
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200 disabled:opacity-50"
+        >
+          {isLoading ? 'Création...' : 'Créer'}
+        </button>
+      </div>
+    </form>
+  );
+} 
+
+===== EditableCategoryTitle.tsx =====
+Chemin : ./src/components/categories/EditableCategoryTitle.tsx
+import { useState } from 'react';
+
+interface EditableCategoryTitleProps {
+  identifier: string;
+  title: string;
+  onSave: (newTitle: string) => Promise<void>;
+}
+
+export default function EditableCategoryTitle({ identifier, title, onSave }: EditableCategoryTitleProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(title);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editedTitle.trim() === title) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await onSave(editedTitle.trim());
+      setIsEditing(false);
+    } catch (err) {
+      setError("Erreur lors de la modification du titre");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <form onSubmit={handleSubmit} className="flex items-center gap-3">
+        <span className="text-3xl font-semibold text-[#424242]">{identifier}</span>
+        <span className="text-3xl font-semibold text-[#424242]">|</span>
+        <div className="flex-1">
+          <input
+            type="text"
+            value={editedTitle}
+            onChange={(e) => setEditedTitle(e.target.value)}
+            className="bg-[#171717] text-3xl font-semibold p-2 rounded-lg border border-[#424242] focus:border-[#ECECEC] outline-none w-full"
+            placeholder="Titre de la catégorie"
+            autoFocus
+            disabled={isLoading}
+          />
+          {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="text-sm bg-[#424242] hover:bg-[#171717] px-3 py-1 rounded border border-[#424242] transition-colors duration-200"
+          >
+            {isLoading ? "..." : "Enregistrer"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEditedTitle(title);
+              setIsEditing(false);
+              setError(null);
+            }}
+            className="text-sm hover:text-gray-400 px-3 py-1"
+          >
+            Annuler
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <h1 
+      className="text-3xl font-semibold flex items-center gap-3 group cursor-pointer"
+      onClick={() => setIsEditing(true)}
+    >
+      <span className="text-[#424242]">{identifier}</span>
+      <span className="text-[#424242]">|</span>
+      <span className="relative">
+        {title}
+        <span className="absolute -right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          ✏️
+        </span>
+      </span>
+    </h1>
+  );
+} 
+
+===== layout.tsx =====
+Chemin : ./src/app/layout.tsx
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import React from "react";
+import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body className={`${inter.variable} antialiased`}>
+        {children}
+      </body>
+    </html>
+  );
+}
+
+
+===== globals.css =====
+Chemin : ./src/app/globals.css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+
+===== page.tsx =====
+Chemin : ./src/app/page.tsx
+import Image from "next/image";
+
+export default function Home() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-8">
+      <h1 className="text-4xl font-bold mb-4">Bienvenue sur Mon Projet</h1>
+      <p className="text-lg">Ceci est la page d'accueil.</p>
+      <div className="mt-8">
+        <a href="/login" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Se connecter
+        </a>
+      </div>
+      <div className="mt-8">
+        <a href="/signup" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          S'inscrire
+        </a>
+      </div>
+    </div>
+  );
+}
+
+
+===== page.tsx =====
+Chemin : ./src/app/signup/page.tsx
+'use client';
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/utils/supabaseClient";
+
+export default function SignupPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    
+    try {
+      // Inscription avec Supabase
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // Création du profil utilisateur
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([
+            {
+              id: authData.user.id,
+              email: authData.user.email,
+              role: 'user', // rôle par défaut
+              created_at: new Date().toISOString(),
+            }
+          ]);
+
+        if (profileError) throw profileError;
+        
+        // Redirection vers la page de connexion
+        router.push('/login');
+      }
+    } catch (error: any) {
+      setErrorMsg(error.message);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+      <form onSubmit={handleSubmit} className="p-6 bg-gray-800 rounded-md shadow-md">
+        <h2 className="text-2xl mb-4">Inscription</h2>
+        {errorMsg && <p className="text-red-500 mb-2">{errorMsg}</p>}
+        <div className="mb-4">
+          <label htmlFor="email" className="block mb-1">Email</label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="p-2 rounded w-full text-black"
+            required
+          />
+        </div>
+        <div className="mb-4">
+          <label htmlFor="password" className="block mb-1">Mot de passe</label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="p-2 rounded w-full text-black"
+            required
+          />
+        </div>
+        <button type="submit" className="w-full bg-blue-600 py-2 rounded hover:bg-blue-700">
+          S'inscrire
+        </button>
+      </form>
+    </div>
+  );
+}
+
+
+===== route.ts =====
+Chemin : ./src/app/api/videos/route.ts
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+// Schéma de validation pour la création d'une vidéo
+const videoSchema = z.object({
+  category_id: z.number(),
+  title: z.string().min(1, "Le titre est requis"),
+  production_status: z.enum(["À monter", "Miniature à faire", "En validation", "Prête à exporter"]),
+  // Champs détaillés optionnels
+  instructions_miniature: z.string().optional(),
+  rush_link: z.string().url().optional(),
+  video_link: z.string().url().optional(),
+  miniature_link: z.string().url().optional(),
+});
+
+// Pour la mise à jour, toutes les propriétés sont optionnelles sauf category_id
+const videoUpdateSchema = videoSchema.partial().extend({
+  category_id: z.number()
+});
+
+export async function GET(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const { searchParams } = new URL(request.url);
+    const categoryId = searchParams.get("categoryId");
+    const videoId = searchParams.get("id");
+
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    let query = supabase
+      .from("category_videos")
+      .select(`
+        *,
+        video_details (*)
+      `);
+
+    if (videoId) {
+      query = query.eq("id", videoId);
+    }
+    if (categoryId) {
+      query = query.eq("category_id", categoryId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des vidéos:', error);
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const parsedData = videoSchema.parse(body);
+
+    // Commencer une transaction
+    const { data: categoryVideo, error: categoryVideoError } = await supabase
+      .from("category_videos")
+      .insert({
+        category_id: parsedData.category_id,
+        title: parsedData.title,
+        production_status: parsedData.production_status
+      })
+      .select()
+      .single();
+
+    if (categoryVideoError) throw categoryVideoError;
+
+    // Créer les détails de la vidéo
+    const { data: videoDetails, error: videoDetailsError } = await supabase
+      .from("video_details")
+      .insert({
+        category_video_id: categoryVideo.id,
+        title: parsedData.title,
+        instructions_miniature: parsedData.instructions_miniature,
+        rush_link: parsedData.rush_link,
+        video_link: parsedData.video_link,
+        miniature_link: parsedData.miniature_link,
+        production_status: parsedData.production_status
+      })
+      .select()
+      .single();
+
+    if (videoDetailsError) throw videoDetailsError;
+
+    return NextResponse.json({
+      categoryVideo,
+      videoDetails
+    }, { status: 201 });
+  } catch (error: any) {
+    console.error('Erreur lors de la création de la vidéo:', error);
+    return NextResponse.json(
+      { error: error.message },
+      { status: 400 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "ID requis pour la mise à jour" },
+        { status: 400 }
+      );
+    }
+
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const parsedData = videoUpdateSchema.parse(body);
+
+    // Mise à jour de category_videos
+    const { error: categoryVideoError } = await supabase
+      .from("category_videos")
+      .update({
+        title: parsedData.title,
+        production_status: parsedData.production_status
+      })
+      .eq("id", id);
+
+    if (categoryVideoError) throw categoryVideoError;
+
+    // Mise à jour de video_details
+    const { data: videoDetails, error: videoDetailsError } = await supabase
+      .from("video_details")
+      .update({
+        title: parsedData.title,
+        instructions_miniature: parsedData.instructions_miniature,
+        rush_link: parsedData.rush_link,
+        video_link: parsedData.video_link,
+        miniature_link: parsedData.miniature_link,
+        production_status: parsedData.production_status
+      })
+      .eq("category_video_id", id)
+      .select();
+
+    if (videoDetailsError) throw videoDetailsError;
+
+    return NextResponse.json(videoDetails);
+  } catch (error: any) {
+    console.error('Erreur lors de la mise à jour de la vidéo:', error);
+    return NextResponse.json(
+      { error: error.message },
+      { status: 400 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "ID requis pour la suppression" },
+        { status: 400 }
+      );
+    }
+
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    // La suppression en cascade s'occupera de video_details
+    const { error } = await supabase
+      .from("category_videos")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Erreur lors de la suppression de la vidéo:', error);
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    );
+  }
+}
+
+
+===== route.ts =====
+Chemin : ./src/app/api/videos/[videoId]/route.ts
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { NextResponse } from "next/server";
+
+export async function GET(
+  request: Request,
+  { params }: { params: { videoId: string } }
+) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("category_videos")
+      .select(`
+        *,
+        video_details (*)
+      `)
+      .eq("id", params.videoId)
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des détails de la vidéo:', error);
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    );
+  }
+} 
+
+===== route.ts =====
+Chemin : ./src/app/api/categories/route.ts
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+async function getNextIdentifier(supabase: any) {
+  const { data: categories } = await supabase
+    .from('video_categories')
+    .select('identifier')
+    .order('identifier', { ascending: true });
+
+  if (!categories || categories.length === 0) {
+    return ALPHABET[0]; // Retourne 'A' si aucune catégorie n'existe
+  }
+
+  // Trouve le dernier identifiant utilisé
+  const lastIdentifier = categories[categories.length - 1].identifier;
+  const lastIndex = ALPHABET.indexOf(lastIdentifier);
+
+  if (lastIndex === -1 || lastIndex === ALPHABET.length - 1) {
+    throw new Error("Plus d'identifiants disponibles");
+  }
+
+  return ALPHABET[lastIndex + 1];
+}
+
+// GET /api/categories
+export async function GET() {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from('video_categories')
+      .select('*')
+      .order('identifier');
+
+    if (error) throw error;
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des catégories:', error);
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/categories
+export async function POST(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { title } = body;
+
+    if (!title) {
+      return NextResponse.json(
+        { error: 'Le titre est requis' },
+        { status: 400 }
+      );
+    }
+
+    const identifier = await getNextIdentifier(supabase);
+
+    const { data, error } = await supabase
+      .from('video_categories')
+      .insert([{ 
+        identifier,
+        title,
+        user_id: session.user.id // Ajout de l'ID de l'utilisateur
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json(data, { status: 201 });
+  } catch (error: any) {
+    console.error('Erreur lors de la création de la catégorie:', error);
+    return NextResponse.json(
+      { error: error.message },
+      { status: 400 }
+    );
+  }
+} 
+
+===== route.ts =====
+Chemin : ./src/app/api/categories/[id]/route.ts
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+
+// GET /api/categories/[id]
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from('video_categories')
+      .select(`
+        *,
+        category_videos (*)
+      `)
+      .eq('id', params.id)
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Erreur lors de la récupération de la catégorie:', error);
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/categories/[id]
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { identifier, title } = body;
+
+    const { data, error } = await supabase
+      .from('video_categories')
+      .update({ identifier, title })
+      .eq('id', params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de la catégorie:', error);
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/categories/[id]
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const { error } = await supabase
+      .from('video_categories')
+      .delete()
+      .eq('id', params.id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Erreur lors de la suppression de la catégorie:', error);
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    );
+  }
+} 
+
+===== route.ts =====
+Chemin : ./src/app/api/auth/[...nextauth]/route.ts
+// ./src/app/api/auth/[...nextauth]/route.ts
+import NextAuth from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import { supabase } from "@/utils/supabaseClient";
+
+const handler = NextAuth({
+  secret: process.env.NEXTAUTH_SECRET, // Clé secrète ajoutée pour signer les tokens JWT
+  providers: [
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "text", placeholder: "john.doe@example.com" },
+        password: { label: "Password", type: "password" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          console.error("❌ Erreur: Email et mot de passe requis !");
+          throw new Error("Email et mot de passe requis");
+        }
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: credentials.email,
+          password: credentials.password
+        });
+
+        if (error || !data.user) {
+          console.error(`❌ Erreur de connexion: ${error?.message}`);
+          throw new Error("Identifiants invalides");
+        }
+
+        console.log(`✅ Utilisateur connecté: ${data.user.email}`);
+
+        return { ...data.user };
+      }
+    })
+  ],
+  session: {
+    strategy: "jwt"
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.email = user.email ?? undefined;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.email = token.email as string;
+      }
+      return session;
+    }
+  },
+  pages: {
+    signIn: "/login"
+  }
+});
+
+export { handler as GET, handler as POST };
+
+
+===== page.tsx =====
+Chemin : ./src/app/login/page.tsx
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+
+export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const supabase = createClientComponentClient();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    setIsLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setErrorMsg(error.message);
+        return;
+      }
+
+      if (data?.session) {
+        router.push("/dashboard");
+        router.refresh(); // Force le rafraîchissement pour mettre à jour la session
+      }
+    } catch (error) {
+      console.error("Erreur de connexion:", error);
+      setErrorMsg("Une erreur est survenue lors de la connexion");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#212121] text-[#ECECEC]">
+      <form
+        onSubmit={handleSubmit}
+        className="w-96 p-8 bg-[#171717] rounded-lg shadow-xl border border-[#424242]"
+      >
+        <h2 className="text-2xl font-semibold mb-6">Connexion</h2>
+        {errorMsg && <p className="text-red-500 mb-4">{errorMsg}</p>}
+        <div className="mb-4">
+          <label htmlFor="email" className="block mb-2 text-sm font-medium">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC] transition-colors duration-200"
+            required
+            disabled={isLoading}
+          />
+        </div>
+        <div className="mb-6">
+          <label htmlFor="password" className="block mb-2 text-sm font-medium">
+            Mot de passe
+          </label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC] transition-colors duration-200"
+            required
+            disabled={isLoading}
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="w-full bg-[#424242] hover:bg-[#171717] text-[#ECECEC] py-3 px-4 rounded-lg transition-colors duration-200 border border-[#424242] disabled:opacity-50"
+        >
+          {isLoading ? "Connexion en cours..." : "Se connecter"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+
+===== page.tsx =====
+Chemin : ./src/app/dashboard/page.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/utils/supabaseClient";
+import type { VideoCategory } from "@/types/database";
+import Modal from "@/components/ui/Modal";
+import CreateCategoryForm from "@/components/categories/CreateCategoryForm";
+
+export default function DashboardPage() {
+  const [categories, setCategories] = useState<VideoCategory[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('video_categories')
+        .select('*')
+        .order('identifier');
+      
+      if (error) {
+        console.error('Erreur lors du chargement des catégories:', error);
+        setError('Impossible de charger les catégories');
+      } else {
+        setCategories(data);
+      }
+    } catch (err) {
+      console.error('Erreur lors du chargement des catégories:', err);
+      setError('Impossible de charger les catégories');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateCategory = async (data: { title: string }) => {
+    try {
+      const response = await fetch('/api/categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erreur lors de la création');
+      }
+
+      await fetchCategories();
+    } catch (err: any) {
+      console.error('Erreur lors de la création de la catégorie:', err);
+      throw new Error(err.message || 'Erreur lors de la création de la catégorie');
+    }
+  };
+
+  const getStatusColor = (finished: number, pending: number, ready: number) => {
+    if (ready > 0) return 'bg-green-600';
+    if (pending > 0) return 'bg-yellow-600';
+    return 'bg-[#424242]';
+  };
+
+  return (
+    <div className="flex h-screen bg-[#212121]">
+      {/* Sidebar */}
+      <aside className="w-64 bg-[#171717] text-[#ECECEC] p-4 border-r border-[#424242]">
+        <h2 className="text-lg font-bold mb-6">Dashboard</h2>
+        <ul className="space-y-2">
+          <li className="py-3 px-3 rounded-lg hover:bg-[#424242] cursor-pointer transition-colors duration-200">
+            <span className="mr-3">🏠</span> Accueil
+          </li>
+          <li className="py-3 px-3 rounded-lg hover:bg-[#424242] cursor-pointer transition-colors duration-200">
+            <span className="mr-3">📂</span> Mes fichiers
+          </li>
+          <li className="py-3 px-3 rounded-lg hover:bg-[#424242] cursor-pointer transition-colors duration-200">
+            <span className="mr-3">⚙️</span> Paramètres
+          </li>
+        </ul>
+      </aside>
+
+      {/* Contenu Principal */}
+      <main className="flex-1 p-8 text-[#ECECEC] overflow-y-auto">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-semibold">
+              Catégories de vidéos
+            </h1>
+          </div>
+
+          {error && (
+            <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg mb-6">
+              {error}
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="text-center py-12">Chargement...</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {categories.map((category) => (
+                <div 
+                  key={category.id}
+                  onClick={() => router.push(`/dashboard/category/${category.id}`)}
+                  className="bg-[#171717] p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center">
+                      <span className="text-xl font-medium text-[#424242]">{category.identifier}</span>
+                      <span className="mx-2 text-xl font-medium text-[#424242]">|</span>
+                      <h3 className="text-xl font-medium">{category.title}</h3>
+                    </div>
+                    <div className={`${getStatusColor(category.finished_count, category.pending_count, category.ready_to_publish_count)} px-2 py-1 rounded text-sm`}>
+                      {category.ready_to_publish_count} / {category.pending_count + category.finished_count + category.ready_to_publish_count}
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center mt-4">
+                    <span className="text-xs text-gray-500">
+                      Mise à jour : {new Date(category.last_updated).toLocaleDateString()}
+                    </span>
+                    <div className="flex space-x-2">
+                      <span className="text-sm text-gray-400">
+                        {category.pending_count} en cours
+                      </span>
+                      <span className="text-sm text-gray-400">
+                        {category.ready_to_publish_count} prêtes
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Carte "Ajouter une catégorie" */}
+              <div 
+                onClick={() => setIsCreateModalOpen(true)}
+                className="bg-[#171717] p-6 rounded-lg border border-dashed border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer flex flex-col items-center justify-center min-h-[200px]"
+              >
+                <div className="w-12 h-12 bg-[#424242] rounded-full flex items-center justify-center mb-4">
+                  <span className="text-2xl">+</span>
+                </div>
+                <p className="text-center text-gray-400">Créer une nouvelle catégorie</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Modal de création de catégorie */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+      >
+        <CreateCategoryForm
+          onSubmit={handleCreateCategory}
+          onClose={() => setIsCreateModalOpen(false)}
+        />
+      </Modal>
+    </div>
+  );
+}
+
+
+===== page.tsx =====
+Chemin : ./src/app/dashboard/category/[id]/page.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { VideoCategory, CategoryVideo, VideoDetail } from "@/types/database";
+import EditableCategoryTitle from '@/components/categories/EditableCategoryTitle';
+
+export default function CategoryPage({ params }: { params: { id: string } }) {
+  const [category, setCategory] = useState<VideoCategory | null>(null);
+  const [videos, setVideos] = useState<(CategoryVideo & { video_details: VideoDetail[] })[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    fetchCategoryDetails();
+  }, [params.id]);
+
+  const fetchCategoryDetails = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/categories/${params.id}`);
+      if (!response.ok) throw new Error('Erreur lors du chargement de la catégorie');
+      
+      const data = await response.json();
+      setCategory(data);
+      
+      // Récupérer les vidéos avec leurs détails
+      const videosResponse = await fetch(`/api/videos?categoryId=${params.id}`);
+      if (!videosResponse.ok) throw new Error('Erreur lors du chargement des vidéos');
+      const videosData = await videosResponse.json();
+      setVideos(videosData);
+    } catch (err) {
+      console.error(err);
+      setError('Impossible de charger les détails de la catégorie');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateTitle = async (newTitle: string) => {
+    try {
+      const response = await fetch(`/api/categories/${params.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title: newTitle }),
+      });
+
+      if (!response.ok) throw new Error('Erreur lors de la mise à jour');
+
+      const updatedCategory = await response.json();
+      setCategory(updatedCategory);
+    } catch (err) {
+      console.error('Erreur lors de la mise à jour du titre:', err);
+      throw err;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#212121] text-[#ECECEC] p-8">
+        <div className="text-center">Chargement...</div>
+      </div>
+    );
+  }
+
+  if (error || !category) {
+    return (
+      <div className="min-h-screen bg-[#212121] text-[#ECECEC] p-8">
+        <div className="text-red-500">{error || 'Catégorie non trouvée'}</div>
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="mt-4 text-[#ECECEC] hover:text-gray-300"
+        >
+          Retour au dashboard
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#212121] text-[#ECECEC]">
+      <div className="max-w-6xl mx-auto p-8">
+        {/* En-tête */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="text-[#ECECEC] hover:text-gray-300 mb-4"
+            >
+              ← Retour au dashboard
+            </button>
+            <EditableCategoryTitle
+              identifier={category.identifier}
+              title={category.title}
+              onSave={handleUpdateTitle}
+            />
+          </div>
+          <button
+            onClick={() => {/* Logique pour ajouter une vidéo */}}
+            className="bg-[#424242] hover:bg-[#171717] text-[#ECECEC] px-4 py-2 rounded-lg transition-colors duration-200 border border-[#424242]"
+          >
+            Ajouter une vidéo
+          </button>
+        </div>
+
+        {/* Statistiques */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="bg-[#171717] p-4 rounded-lg border border-[#424242]">
+            <div className="text-sm text-gray-400">En cours</div>
+            <div className="text-2xl font-semibold">{category.pending_count}</div>
+          </div>
+          <div className="bg-[#171717] p-4 rounded-lg border border-[#424242]">
+            <div className="text-sm text-gray-400">Terminées</div>
+            <div className="text-2xl font-semibold">{category.finished_count}</div>
+          </div>
+          <div className="bg-[#171717] p-4 rounded-lg border border-[#424242]">
+            <div className="text-sm text-gray-400">Prêtes à publier</div>
+            <div className="text-2xl font-semibold">{category.ready_to_publish_count}</div>
+          </div>
+        </div>
+
+        {/* Liste des vidéos */}
+        <div className="space-y-4">
+          {/* Carte "Ajouter une vidéo" toujours en premier */}
+          <div
+            onClick={() => {/* Logique pour ajouter une vidéo */}}
+            className="bg-[#171717] p-6 rounded-lg border border-dashed border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer flex flex-col items-center justify-center"
+          >
+            <div className="w-12 h-12 bg-[#424242] rounded-full flex items-center justify-center mb-4">
+              <span className="text-2xl">+</span>
+            </div>
+            <p className="text-center text-gray-400">Ajouter une nouvelle vidéo</p>
+          </div>
+
+          {/* Liste des vidéos existantes */}
+          {videos.map((video) => (
+            <div
+              key={video.id}
+              onClick={() => {
+                const videoDetail = video.video_details[0];
+                if (videoDetail) {
+                    router.push(`/dashboard/category/${params.id}/video/${videoDetail.id}`);
+                }
+              }}
+              className="bg-[#171717] p-4 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer"
+            >
+              <div className="flex justify-between items-center">
+                <h3 className="font-medium">{video.title}</h3>
+                <span className="text-sm px-2 py-1 bg-[#424242] rounded">
+                  {video.production_status}
+                </span>
+              </div>
+              <div className="mt-2 text-sm text-gray-400">
+                Dernière mise à jour : {new Date(video.updated_at).toLocaleDateString()}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+} 
+
+===== page.tsx =====
+Chemin : ./src/app/dashboard/category/[categoryId]/video/[videoId]/page.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { VideoDetail, VideoStatus } from "@/types/database";
+
+const STATUS_OPTIONS: VideoStatus[] = [
+  "À monter",
+  "Miniature à faire",
+  "En validation",
+  "Prête à exporter"
+];
+
+export default function VideoPage({ 
+  params 
+}: { 
+  params: { categoryId: string; videoId: string } 
+}) {
+  const [video, setVideo] = useState<VideoDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    fetchVideoDetails();
+  }, [params.videoId]);
+
+  const fetchVideoDetails = async () => {
+    try {
+      const response = await fetch(`/api/videos?id=${params.videoId}`);
+      if (!response.ok) throw new Error('Erreur lors du chargement de la vidéo');
+      const data = await response.json();
+      setVideo(data[0]?.video_details[0] || null);
+    } catch (err) {
+      console.error(err);
+      setError('Impossible de charger les détails de la vidéo');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdate = async (field: string, value: string) => {
+    try {
+      const response = await fetch(`/api/videos/${params.videoId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ [field]: value }),
+      });
+
+      if (!response.ok) throw new Error('Erreur lors de la mise à jour');
+      const updatedVideo = await response.json();
+      setVideo(updatedVideo);
+    } catch (err) {
+      console.error('Erreur lors de la mise à jour:', err);
+    }
+  };
+
+  if (isLoading) return <div className="min-h-screen bg-[#212121] text-[#ECECEC] p-8">Chargement...</div>;
+  if (error || !video) {
+    return (
+      <div className="min-h-screen bg-[#212121] text-[#ECECEC] p-8">
+        <div className="text-red-500">{error || 'Vidéo non trouvée'}</div>
+        <button
+          onClick={() => router.back()}
+          className="mt-4 text-[#ECECEC] hover:text-gray-300"
+        >
+          Retour
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#212121] text-[#ECECEC]">
+      <div className="max-w-4xl mx-auto p-8">
+        <button
+          onClick={() => router.back()}
+          className="text-[#ECECEC] hover:text-gray-300 mb-6"
+        >
+          ← Retour
+        </button>
+
+        <div className="space-y-6">
+          {/* Titre */}
+          <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
+            <label className="block text-sm font-medium mb-2">Titre</label>
+            <input
+              type="text"
+              value={video.title}
+              onChange={(e) => handleUpdate('title', e.target.value)}
+              className="w-full bg-[#212121] border border-[#424242] rounded-lg p-3 text-[#ECECEC] focus:outline-none focus:border-[#ECECEC]"
+            />
+          </div>
+
+          {/* Statut */}
+          <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
+            <label className="block text-sm font-medium mb-2">Statut</label>
+            <select
+              value={video.production_status}
+              onChange={(e) => handleUpdate('production_status', e.target.value)}
+              className="w-full bg-[#212121] border border-[#424242] rounded-lg p-3 text-[#ECECEC] focus:outline-none focus:border-[#ECECEC]"
+            >
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Instructions miniature */}
+          <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
+            <label className="block text-sm font-medium mb-2">Instructions miniature</label>
+            <textarea
+              value={video.instructions_miniature || ''}
+              onChange={(e) => handleUpdate('instructions_miniature', e.target.value)}
+              className="w-full bg-[#212121] border border-[#424242] rounded-lg p-3 text-[#ECECEC] focus:outline-none focus:border-[#ECECEC] min-h-[100px]"
+              placeholder="Instructions pour la création de la miniature..."
+            />
+          </div>
+
+          {/* Liens */}
+          <div className="space-y-4">
+            {/* Rush link */}
+            <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
+              <label className="block text-sm font-medium mb-2">Lien des rushs</label>
+              <input
+                type="url"
+                value={video.rush_link || ''}
+                onChange={(e) => handleUpdate('rush_link', e.target.value)}
+                className="w-full bg-[#212121] border border-[#424242] rounded-lg p-3 text-[#ECECEC] focus:outline-none focus:border-[#ECECEC]"
+                placeholder="https://"
+              />
+            </div>
+
+            {/* Video link */}
+            <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
+              <label className="block text-sm font-medium mb-2">Lien de la vidéo</label>
+              <input
+                type="url"
+                value={video.video_link || ''}
+                onChange={(e) => handleUpdate('video_link', e.target.value)}
+                className="w-full bg-[#212121] border border-[#424242] rounded-lg p-3 text-[#ECECEC] focus:outline-none focus:border-[#ECECEC]"
+                placeholder="https://"
+              />
+            </div>
+
+            {/* Miniature link */}
+            <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
+              <label className="block text-sm font-medium mb-2">Lien de la miniature</label>
+              <input
+                type="url"
+                value={video.miniature_link || ''}
+                onChange={(e) => handleUpdate('miniature_link', e.target.value)}
+                className="w-full bg-[#212121] border border-[#424242] rounded-lg p-3 text-[#ECECEC] focus:outline-none focus:border-[#ECECEC]"
+                placeholder="https://"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+} 
+
+===== page.tsx =====
+Chemin : ./src/app/dashboard/categories/[categoryId]/videos/[videoId]/page.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { VideoDetail, VideoStatus } from "@/types/database";
+
+const STATUS_OPTIONS: VideoStatus[] = [
+  "À monter",
+  "Miniature à faire",
+  "En validation",
+  "Prête à exporter"
+];
+
+export default function VideoPage({ 
+  params 
+}: { 
+  params: { categoryId: string; videoId: string } 
+}) {
+  const [video, setVideo] = useState<VideoDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    fetchVideoDetails();
+  }, [params.videoId]);
+
+  const fetchVideoDetails = async () => {
+    try {
+      const response = await fetch(`/api/videos/${params.videoId}`);
+      if (!response.ok) throw new Error('Erreur lors du chargement de la vidéo');
+      const data = await response.json();
+      setVideo(data);
+    } catch (err) {
+      console.error(err);
+      setError('Impossible de charger les détails de la vidéo');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ... reste du code inchangé ...
+} 
+
+===== user.ts =====
+Chemin : ./src/types/user.ts
+export type Profile = {
+  id: string;
+  email: string;
+  role: 'user' | 'admin';
+  name?: string;
+  created_at: string;
+}
+
+export type Session = {
+  user: {
+    id: string;
+    email: string;
+    role?: string;
+    name?: string;
+  }
+} 
+
+===== database.ts =====
+Chemin : ./src/types/database.ts
+export type VideoStatus = 
+  | 'À monter'
+  | 'Miniature à faire'
+  | 'En validation'
+  | 'Prête à exporter';
+
+export interface VideoCategory {
+  id: number;
+  identifier: string;
+  title: string;
+  last_updated: string;
+  finished_count: number;
+  pending_count: number;
+  ready_to_publish_count: number;
+}
+
+export interface CategoryVideo {
+  id: number;
+  category_id: number;
+  title: string;
+  production_status: VideoStatus;
+  created_at: string;
+  updated_at: string;
+  video_details: VideoDetail[];
+}
+
+export interface VideoDetail {
+  id: number;
+  category_video_id: number;
+  title: string;
+  instructions_miniature?: string;
+  rush_link?: string;
+  video_link?: string;
+  miniature_link?: string;
+  production_status: VideoStatus;
+  created_at: string;
+  updated_at: string;
+} 
+
+===== next-auth.types.d.ts =====
+Chemin : ./types/next-auth.types.d.ts
+import NextAuth, { DefaultSession, DefaultUser } from "next-auth";
+import "next-auth/jwt";
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      role?: string | null;
+    } & DefaultSession["user"];
+  }
+  interface User extends DefaultUser {
+    id: string;
+    role?: string | null;
+  }
+  interface AdapterUser extends User {}
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id?: string;
+    role?: string | null;
+    name?: string;
+  }
+}
+
+
