@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Trash2, ArrowLeft, Save } from "react-feather";
+import CreateVideoModal from "@/components/CreateVideoModal";
 
 interface Video {
   id: number;
   title: string;
-  status: 'pending' | 'finished' | 'ready_to_publish';
+  status: "pending" | "finished" | "ready_to_publish";
   created_at: string;
   updated_at: string;
 }
@@ -22,9 +24,12 @@ interface Category {
 export default function CategoryPage({ params }: { params: { id: string } }) {
   const [category, setCategory] = useState<Category | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
+  const [newTitle, setNewTitle] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const router = useRouter();
   const supabase = createClientComponentClient();
 
@@ -41,28 +46,28 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
   const fetchCategoryDetails = async () => {
     try {
       const { data: categoryData, error: categoryError } = await supabase
-        .from('video_categories')
-        .select('*')
-        .eq('id', params.id)
+        .from("video_categories")
+        .select("*")
+        .eq("id", params.id)
         .single();
 
       if (categoryError) throw categoryError;
 
       const { data: videosData, error: videosError } = await supabase
-        .from('category_videos')
-        .select('*')
-        .eq('category_id', params.id)
-        .order('id', { ascending: true });
+        .from("category_videos")
+        .select("*")
+        .eq("category_id", params.id)
+        .order("id", { ascending: true });
 
       if (videosError) throw videosError;
 
       setCategory({
         ...categoryData,
-        videos: videosData || []
+        videos: videosData || [],
       });
     } catch (err) {
-      console.error('Erreur lors du chargement de la catégorie:', err);
-      setError('Impossible de charger les détails de la catégorie');
+      console.error("Erreur lors du chargement de la catégorie:", err);
+      setError("Impossible de charger les détails de la catégorie");
     } finally {
       setIsLoading(false);
     }
@@ -71,39 +76,62 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
   const handleTitleUpdate = async () => {
     try {
       const { error } = await supabase
-        .from('video_categories')
+        .from("video_categories")
         .update({ title: newTitle })
-        .eq('id', params.id);
+        .eq("id", params.id);
 
       if (error) throw error;
-      
-      setCategory(prev => prev ? { ...prev, title: newTitle } : null);
+
+      setCategory((prev) => (prev ? { ...prev, title: newTitle } : null));
       setEditingTitle(false);
     } catch (err) {
-      console.error('Erreur lors de la mise à jour du titre:', err);
-      setError('Impossible de mettre à jour le titre');
+      console.error("Erreur lors de la mise à jour du titre:", err);
+      setError("Impossible de mettre à jour le titre");
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    try {
+      setIsDeleting(true);
+
+      const response = await fetch(`/api/categories/${params.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Échec de la suppression");
+      }
+
+      // Redirection vers le dashboard après suppression réussie
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Erreur lors de la suppression de la catégorie:", err);
+      setError("Impossible de supprimer la catégorie");
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ready_to_publish':
-        return 'bg-green-600';
-      case 'pending':
-        return 'bg-yellow-600';
+      case "ready_to_publish":
+        return "bg-green-600";
+      case "pending":
+        return "bg-yellow-600";
       default:
-        return 'bg-[#424242]';
+        return "bg-[#424242]";
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'ready_to_publish':
-        return 'Prêt à publier';
-      case 'pending':
-        return 'En cours';
-      case 'finished':
-        return 'Terminé';
+      case "ready_to_publish":
+        return "Prêt à publier";
+      case "pending":
+        return "En cours";
+      case "finished":
+        return "Terminé";
       default:
         return status;
     }
@@ -126,9 +154,9 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
           </div>
           <button
             onClick={() => router.back()}
-            className="mt-4 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200"
+            className="mt-4 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200 flex items-center gap-2"
           >
-            Retour
+            <ArrowLeft size={16} /> Retour
           </button>
         </div>
       </div>
@@ -139,12 +167,24 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
     <div className="min-h-screen bg-[#212121] text-[#ECECEC]">
       <div className="max-w-6xl mx-auto p-8">
         <div className="mb-8">
-          <button
-            onClick={() => router.back()}
-            className="mb-4 text-[#ECECEC] hover:text-gray-300 transition-colors duration-200"
-          >
-            ← Retour
-          </button>
+          <div className="flex justify-between items-center mb-4">
+            <button
+              onClick={() => router.back()}
+              className="text-[#ECECEC] hover:text-gray-300 transition-colors duration-200 flex items-center gap-1.5"
+            >
+              <ArrowLeft size={16} /> Retour
+            </button>
+
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-black/20 text-red-500 rounded-md transition-colors duration-200 text-sm"
+              disabled={isDeleting}
+            >
+              <Trash2 size={16} />
+              {isDeleting ? "Suppression..." : "Supprimer"}
+            </button>
+          </div>
+
           <h1 className="text-3xl font-semibold flex items-center gap-4">
             <span className="text-[#424242]">{category.identifier}</span>
             {editingTitle ? (
@@ -158,28 +198,100 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
                 />
                 <button
                   onClick={handleTitleUpdate}
-                  className="text-sm px-2 py-1 bg-[#424242] rounded"
+                  className="text-sm px-2 py-1 bg-[#424242] rounded flex items-center gap-1"
                 >
-                  Sauvegarder
+                  <Save size={14} /> Sauvegarder
                 </button>
               </div>
             ) : (
-              <span onClick={() => setEditingTitle(true)} className="cursor-pointer hover:text-gray-300">
+              <span
+                onClick={() => setEditingTitle(true)}
+                className="cursor-pointer hover:text-gray-300"
+              >
                 {category.title}
               </span>
             )}
           </h1>
         </div>
 
+        {/* Modale de confirmation de suppression */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-[#171717] p-6 rounded-lg shadow-xl max-w-md w-full border border-gray-200 dark:border-[#424242]">
+              <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-[#ECECEC]">
+                Confirmer la suppression
+              </h2>
+              <p className="mb-6 text-gray-700 dark:text-gray-300">
+                Êtes-vous sûr de vouloir supprimer la catégorie{" "}
+                <strong>{category.title}</strong> ?
+                {category.videos.length > 0 && (
+                  <span className="block mt-2 text-red-500 dark:text-red-400">
+                    Cette catégorie contient {category.videos.length} vidéo
+                    {category.videos.length > 1 ? "s" : ""} qui ne sera/seront
+                    plus associée(s) à aucune catégorie.
+                  </span>
+                )}
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-[#424242] dark:hover:bg-[#535353] text-gray-800 dark:text-[#ECECEC] rounded-md transition-colors duration-200 text-sm"
+                  disabled={isDeleting}
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleDeleteCategory}
+                  className="px-3 py-1.5 flex items-center gap-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-md transition-colors duration-200 text-sm"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? (
+                    <>
+                      <svg
+                        className="animate-spin h-4 w-4"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Suppression...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} />
+                      Confirmer
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Liste des vidéos */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div
-            onClick={() => router.push(`/dashboard/categories/${params.id}/new-video`)}
+            onClick={() => setIsCreateModalOpen(true)}
             className="bg-[#171717] p-6 rounded-lg border-2 border-dashed border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer flex items-center justify-center min-h-[160px] group"
           >
             <div className="text-center">
               <div className="w-12 h-12 rounded-full border-2 border-[#424242] group-hover:border-[#ECECEC] flex items-center justify-center mx-auto mb-3 transition-colors duration-200">
-                <span className="text-2xl text-[#424242] group-hover:text-[#ECECEC] transition-colors duration-200">+</span>
+                <span className="text-2xl text-[#424242] group-hover:text-[#ECECEC] transition-colors duration-200">
+                  +
+                </span>
               </div>
               <div className="text-[#424242] group-hover:text-[#ECECEC] transition-colors duration-200">
                 Ajouter une vidéo
@@ -196,26 +308,39 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
               <div className="flex flex-col h-full">
                 <div className="flex items-start justify-between mb-4">
                   <h3 className="text-xl font-medium flex-1">{video.title}</h3>
-                  <span className={`px-3 py-1 rounded-full text-sm ${getStatusColor(video.status)} ml-2`}>
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm ${getStatusColor(
+                      video.status
+                    )} ml-2`}
+                  >
                     {getStatusText(video.status)}
                   </span>
                 </div>
                 <div className="mt-auto">
                   <div className="text-sm text-gray-400">
-                    Dernière mise à jour : {new Date(video.updated_at).toLocaleDateString()}
+                    Dernière mise à jour :{" "}
+                    {new Date(video.updated_at).toLocaleDateString()}
                   </div>
                 </div>
               </div>
             </div>
           ))}
-          
-          {category.videos.length === 0 && !category.videos.length && (
+
+          {category.videos.length === 0 && (
             <div className="col-span-full text-center py-12 text-gray-400">
               Aucune vidéo dans cette catégorie
             </div>
           )}
         </div>
+
+        <CreateVideoModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={fetchCategoryDetails}
+          categoryId={params.id}
+          categoryTitle={category.title}
+        />
       </div>
     </div>
   );
-} 
+}

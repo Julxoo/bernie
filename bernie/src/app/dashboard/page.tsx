@@ -19,7 +19,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  
+
   const router = useRouter();
   const supabase = createClientComponentClient();
 
@@ -30,14 +30,15 @@ export default function DashboardPage() {
   const fetchCategories = async () => {
     try {
       const { data, error } = await supabase
-        .from('video_categories')
-        .select('*');
+        .from("video_categories")
+        .select("*")
+        .order("identifier", { ascending: true });
 
       if (error) throw error;
       setCategories(data || []);
     } catch (err) {
-      console.error('Erreur lors du chargement des catégories:', err);
-      setError('Impossible de charger les catégories');
+      console.error("Erreur lors du chargement des catégories:", err);
+      setError("Impossible de charger les catégories");
     } finally {
       setIsLoading(false);
     }
@@ -46,9 +47,9 @@ export default function DashboardPage() {
   const handleSignOut = async () => {
     try {
       await supabase.auth.signOut();
-      router.push('/login');
+      router.push("/login");
     } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
+      console.error("Erreur lors de la déconnexion:", error);
     }
   };
 
@@ -67,11 +68,14 @@ export default function DashboardPage() {
         <div className="p-6">
           <h1 className="text-xl font-semibold text-[#ECECEC]">Dashboard</h1>
         </div>
-        
+
         <nav className="flex-1 p-4">
           <ul className="space-y-2">
             <li>
-              <a href="/dashboard" className="text-[#ECECEC] hover:text-gray-300 block py-2">
+              <a
+                href="/dashboard"
+                className="text-[#ECECEC] hover:text-gray-300 block py-2"
+              >
                 Catégories
               </a>
             </li>
@@ -93,9 +97,7 @@ export default function DashboardPage() {
       <main className="flex-1 p-8 text-[#ECECEC] overflow-y-auto">
         <div className="max-w-6xl mx-auto">
           <div className="mb-8">
-            <h1 className="text-3xl font-semibold">
-              Catégories de vidéos
-            </h1>
+            <h1 className="text-3xl font-semibold">Catégories de vidéos</h1>
           </div>
 
           {error && (
@@ -113,19 +115,27 @@ export default function DashboardPage() {
               <div className="w-12 h-12 bg-[#424242] rounded-full flex items-center justify-center mb-4">
                 <span className="text-2xl">+</span>
               </div>
-              <p className="text-center text-gray-400">Créer une nouvelle catégorie</p>
+              <p className="text-center text-gray-400">
+                Créer une nouvelle catégorie
+              </p>
             </div>
 
             {/* Liste des catégories existantes */}
             {categories.map((category) => (
               <div
                 key={category.id}
-                onClick={() => router.push(`/dashboard/categories/${category.id}`)}
+                onClick={() =>
+                  router.push(`/dashboard/categories/${category.id}`)
+                }
                 className="bg-[#171717] p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer"
               >
                 <div className="flex items-center mb-4">
-                  <span className="text-xl font-medium text-[#424242]">{category.identifier}</span>
-                  <span className="mx-2 text-xl font-medium text-[#424242]">|</span>
+                  <span className="text-xl font-medium text-[#424242]">
+                    {category.identifier}
+                  </span>
+                  <span className="mx-2 text-xl font-medium text-[#424242]">
+                    |
+                  </span>
                   <h3 className="text-xl font-medium">{category.title}</h3>
                 </div>
                 <div className="flex justify-between text-sm text-gray-400">

@@ -8,7 +8,6 @@ const videoSchema = z.object({
   category_id: z.number(),
   title: z.string().min(1, "Le titre est requis"),
   production_status: z.enum(["À monter", "Miniature à faire", "En validation", "Prête à exporter"]),
-  // Champs détaillés optionnels
   instructions_miniature: z.string().optional(),
   rush_link: z.string().url().optional(),
   video_link: z.string().url().optional(),
