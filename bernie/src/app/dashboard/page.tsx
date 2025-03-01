@@ -1,158 +1,147 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useState, useEffect, useCallback } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import CreateCategoryModal from "@/components/CreateCategoryModal";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useRouter } from "next/navigation";
 
-interface Category {
+interface CategoryWithCounts {
   id: number;
   identifier: string;
   title: string;
   pending_count: number;
-  finished_count: number;
   ready_to_publish_count: number;
+  finished_count: number;
 }
 
 export default function DashboardPage() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [categories, setCategories] = useState<CategoryWithCounts[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-
-  const router = useRouter();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const supabase = createClientComponentClient();
+  const router = useRouter();
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
+    setIsLoading(true);
     try {
+      // 1. Récupérer catégories + vidéos (avec production_status)
       const { data, error } = await supabase
         .from("video_categories")
-        .select("*")
+        .select(`
+          id,
+          identifier,
+          title,
+          category_videos (
+            production_status
+          )
+        `)
         .order("identifier", { ascending: true });
 
       if (error) throw error;
-      setCategories(data || []);
+
+      // 2. Calculer les compteurs
+      const mapped = (data || []).map((cat) => {
+        let pending_count = 0;
+        let ready_to_publish_count = 0;
+        let finished_count = 0;
+
+        cat.category_videos?.forEach((video: { production_status: string }) => {
+          if (video.production_status === "En cours") {
+            pending_count++;
+          } else if (video.production_status === "Prêt à publier") {
+            ready_to_publish_count++;
+          } else if (video.production_status === "Terminé") {
+            finished_count++;
+          }
+        });
+
+        return {
+          id: cat.id,
+          identifier: cat.identifier,
+          title: cat.title,
+          pending_count,
+          ready_to_publish_count,
+          finished_count,
+        };
+      });
+
+      setCategories(mapped);
     } catch (err) {
       console.error("Erreur lors du chargement des catégories:", err);
       setError("Impossible de charger les catégories");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [supabase]);
 
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      router.push("/login");
-    } catch (error) {
-      console.error("Erreur lors de la déconnexion:", error);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#212121] text-[#ECECEC] flex items-center justify-center">
-        Chargement...
-      </div>
-    );
-  }
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   return (
-    <div className="min-h-screen bg-[#212121] flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-[#171717] min-h-screen flex flex-col border-r border-[#424242]">
-        <div className="p-6">
-          <h1 className="text-xl font-semibold text-[#ECECEC]">Dashboard</h1>
+    <DashboardLayout>
+      <header className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-semibold">
+          Catégories de vidéos
+        </h1>
+      </header>
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg mb-6">
+          {error}
+        </div>
+      )}
+
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Carte pour ajouter une nouvelle catégorie */}
+        <div
+          onClick={() => setIsCreateModalOpen(true)}
+          className="bg-[#171717] p-5 md:p-6 rounded-lg border border-dashed border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer flex flex-col items-center justify-center hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+        >
+          <div className="w-10 h-10 md:w-12 md:h-12 bg-[#424242] rounded-full flex items-center justify-center mb-3">
+            +
+          </div>
+          <p className="text-center text-gray-400 text-sm md:text-base">
+            Créer une nouvelle catégorie
+          </p>
         </div>
 
-        <nav className="flex-1 p-4">
-          <ul className="space-y-2">
-            <li>
-              <a
-                href="/dashboard"
-                className="text-[#ECECEC] hover:text-gray-300 block py-2"
-              >
-                Catégories
-              </a>
-            </li>
-            {/* Autres liens de navigation si nécessaire */}
-          </ul>
-        </nav>
-
-        <div className="p-4 border-t border-[#424242]">
-          <button
-            onClick={handleSignOut}
-            className="w-full px-4 py-2 text-sm bg-[#424242] hover:bg-[#171717] rounded-lg transition-colors duration-200 border border-[#424242] text-[#ECECEC]"
+        {/* Liste des catégories existantes */}
+        {categories.map((category, index) => (
+          <div
+            key={category.id}
+            onClick={() => router.push(`/dashboard/categories/${category.id}`)}
+            className="bg-[#171717] p-5 md:p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+            style={{ animationDelay: `${index * 50}ms` }}
           >
-            Déconnexion
-          </button>
-        </div>
-      </aside>
-
-      {/* Contenu Principal */}
-      <main className="flex-1 p-8 text-[#ECECEC] overflow-y-auto">
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-semibold">Catégories de vidéos</h1>
-          </div>
-
-          {error && (
-            <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg mb-6">
-              {error}
+            {/* Contenu de la carte */}
+            <div className="flex items-center mb-3">
+              <span className="text-lg md:text-xl font-medium text-[#424242]">
+                {category.identifier}
+              </span>
+              <span className="mx-2 text-lg md:text-xl font-medium text-[#424242]">
+                |
+              </span>
+              <h3 className="text-lg md:text-xl font-medium truncate">
+                {category.title}
+              </h3>
             </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Carte "Ajouter une catégorie" en premier */}
-            <div
-              onClick={() => setIsCreateModalOpen(true)}
-              className="bg-[#171717] p-6 rounded-lg border border-dashed border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer flex flex-col items-center justify-center"
-            >
-              <div className="w-12 h-12 bg-[#424242] rounded-full flex items-center justify-center mb-4">
-                <span className="text-2xl">+</span>
-              </div>
-              <p className="text-center text-gray-400">
-                Créer une nouvelle catégorie
-              </p>
+            <div className="flex flex-col text-xs md:text-sm text-gray-400 gap-1">
+              <span>{category.pending_count} en cours</span>
+              <span>{category.ready_to_publish_count} prêtes</span>
+              <span>{category.finished_count} terminées</span>
             </div>
-
-            {/* Liste des catégories existantes */}
-            {categories.map((category) => (
-              <div
-                key={category.id}
-                onClick={() =>
-                  router.push(`/dashboard/categories/${category.id}`)
-                }
-                className="bg-[#171717] p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer"
-              >
-                <div className="flex items-center mb-4">
-                  <span className="text-xl font-medium text-[#424242]">
-                    {category.identifier}
-                  </span>
-                  <span className="mx-2 text-xl font-medium text-[#424242]">
-                    |
-                  </span>
-                  <h3 className="text-xl font-medium">{category.title}</h3>
-                </div>
-                <div className="flex justify-between text-sm text-gray-400">
-                  <span>{category.pending_count} en cours</span>
-                  <span>{category.ready_to_publish_count} prêtes</span>
-                </div>
-              </div>
-            ))}
           </div>
-        </div>
-      </main>
+        ))}
+      </section>
 
       <CreateCategoryModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={fetchCategories}
       />
-    </div>
+    </DashboardLayout>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import {
   fetchVideoDetails,
   updateTitle,
@@ -12,37 +13,61 @@ import {
 } from "../../../../services/videoService";
 import { Video, VIDEO_STATUS } from "../../../../types/video";
 import { STATUS_STEPS } from "../../../../constants/videoConstants";
-import { EditableField } from "../../../../components/EditableField";
+import EditableItem from "../../../../components/EditableItem";
 import { StatusProgress } from "../../../../components/StatusProgress";
-import { ArrowLeft } from "react-feather";
+import { ArrowLeft, Trash2 } from "react-feather";
+
+interface SectionProps {
+  title: string;
+  children: React.ReactNode;
+}
+
+const Section = ({ title, children }: SectionProps) => (
+  <section className="bg-[#171717] p-4 md:p-6 rounded-lg border border-gray-700 shadow-sm">
+    <h2 className="text-lg md:text-xl font-medium mb-4">{title}</h2>
+    <div className="grid gap-4">{children}</div>
+  </section>
+);
+
+interface ErrorStateProps {
+  error: string | null;
+  onBack: () => void;
+}
+
+const ErrorState = ({ error, onBack }: ErrorStateProps) => (
+  <div className="min-h-screen bg-[#212121] text-[#ECECEC] p-4">
+    <div className="max-w-4xl mx-auto">
+      <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg mb-4">
+        {error || "Vidéo non trouvée"}
+      </div>
+      <button
+        onClick={onBack}
+        className="inline-flex items-center gap-1.5 text-[#ECECEC] hover:text-gray-300 transition-colors"
+      >
+        <ArrowLeft size={16} /> Retour
+      </button>
+    </div>
+  </div>
+);
 
 export default function VideoPage({ params }: { params: { id: string } }) {
   const [video, setVideo] = useState<Video | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isStatusChanging, setIsStatusChanging] = useState(false);
+  const [isStatusChanging, setIsStatusChanging] = useState<boolean>(false);
   const router = useRouter();
 
-  // États locaux pour l'édition
-  const [newTitle, setNewTitle] = useState("");
-  const [newDescription, setNewDescription] = useState("");
-  const [newInstructions, setNewInstructions] = useState("");
-  const [newRushLink, setNewRushLink] = useState("");
-  const [newVideoLink, setNewVideoLink] = useState("");
-  const [newMiniatureLink, setNewMiniatureLink] = useState("");
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [editingDescription, setEditingDescription] = useState(false);
-  const [editingInstructions, setEditingInstructions] = useState(false);
-  const [editingRushLink, setEditingRushLink] = useState(false);
-  const [editingVideoLink, setEditingVideoLink] = useState(false);
-  const [editingMiniatureLink, setEditingMiniatureLink] = useState(false);
+  // État pour la suppression
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     const loadVideo = async () => {
       try {
         const data = await fetchVideoDetails(params.id);
         setVideo(data);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Erreur lors du chargement de la vidéo :", err);
         setError("Impossible de charger les détails de la vidéo");
       } finally {
@@ -52,341 +77,333 @@ export default function VideoPage({ params }: { params: { id: string } }) {
     loadVideo();
   }, [params.id]);
 
-  useEffect(() => {
-    if (video) {
-      setNewTitle(video.title);
-      setNewDescription(video.description || "");
-      setNewInstructions(video.instructions_miniature || "");
-      setNewRushLink(video.rush_link || "");
-      setNewVideoLink(video.video_link || "");
-      setNewMiniatureLink(video.miniature_link || "");
-    }
-  }, [video]);
-
-  const handleTitleUpdate = async () => {
-    if (!newTitle.trim()) return;
+  // Mise à jour du titre
+  const handleTitleUpdate = async (newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
     try {
-      await updateTitle(params.id, newTitle);
-      setVideo((prev) => (prev ? { ...prev, title: newTitle } : null));
-      setEditingTitle(false);
-    } catch (err) {
+      await updateTitle(params.id, trimmed);
+      setVideo((prev) => (prev ? { ...prev, title: trimmed } : null));
+    } catch (err: any) {
       console.error("Erreur lors de la mise à jour du titre :", err);
       setError("Impossible de mettre à jour le titre");
     }
   };
 
-  const handleDescriptionUpdate = async () => {
+  // Mise à jour de la description
+  const handleDescriptionUpdate = async (newDescription: string) => {
     try {
       await updateDescription(params.id, newDescription);
-      setVideo((prev) => (prev ? { ...prev, description: newDescription } : null));
-      setEditingDescription(false);
-    } catch (err) {
+      setVideo((prev) =>
+        prev ? { ...prev, description: newDescription } : null
+      );
+    } catch (err: any) {
       console.error("Erreur lors de la mise à jour de la description :", err);
       setError("Impossible de mettre à jour la description");
     }
   };
 
-  const handleInstructionsUpdate = async () => {
+  // Mise à jour des instructions
+  const handleInstructionsUpdate = async (newInstructions: string) => {
     try {
       await updateInstructions(params.id, newInstructions);
       setVideo((prev) =>
         prev ? { ...prev, instructions_miniature: newInstructions } : null
       );
-      setEditingInstructions(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erreur lors de la mise à jour des instructions :", err);
       setError("Impossible de mettre à jour les instructions");
     }
   };
 
+  // Mise à jour d'un lien (rush, vidéo montée, miniature)
   const handleLinkUpdate = async (
-    field: string,
-    value: string,
-    setEditing: (val: boolean) => void
+    newValue: string,
+    dbField: "rush_link" | "video_link" | "miniature_link"
   ) => {
     try {
-      await updateLink(params.id, field, value);
-      setVideo((prev) => (prev ? { ...prev, [field]: value } : null));
-      setEditing(false);
-    } catch (err) {
-      console.error(`Erreur lors de la mise à jour du lien ${field} :`, err);
-      setError(`Impossible de mettre à jour le lien ${field}`);
+      await updateLink(params.id, dbField, newValue);
+      setVideo((prev) => (prev ? { ...prev, [dbField]: newValue } : null));
+    } catch (err: any) {
+      console.error(`Erreur lors de la mise à jour du lien ${dbField} :`, err);
+      setError(`Impossible de mettre à jour le lien ${dbField}`);
     }
   };
 
-  const handleStatusUpdate = async (newStatus: typeof VIDEO_STATUS[keyof typeof VIDEO_STATUS]) => {
+  // Mise à jour du statut sans restriction de saut, avec toast en cas d'erreur
+  const handleStatusUpdate = async (
+    newStatus: (typeof VIDEO_STATUS)[keyof typeof VIDEO_STATUS]
+  ) => {
     if (!video) return;
     setIsStatusChanging(true);
     try {
-      const newStatusIndex = STATUS_STEPS.findIndex((step) => step.value === newStatus);
-      const currentStatusIndex = STATUS_STEPS.findIndex(
-        (step) => step.value === video.production_status
-      );
-      if (Math.abs(newStatusIndex - currentStatusIndex) > 1) {
-        throw new Error("Vous ne pouvez changer que vers le statut suivant ou précédent");
-      }
       await updateStatus(params.id, newStatus);
-      setVideo((prev) => (prev ? { ...prev, production_status: newStatus } : null));
-    } catch (err) {
+      setVideo((prev) =>
+        prev ? { ...prev, production_status: newStatus } : null
+      );
+    } catch (err: any) {
       console.error("Erreur lors de la mise à jour du statut :", err);
-      setError(err instanceof Error ? err.message : "Impossible de mettre à jour le statut");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Impossible de mettre à jour le statut"
+      );
     } finally {
       setIsStatusChanging(false);
     }
   };
 
-  const getStepStatus = (
-    stepValue: typeof VIDEO_STATUS[keyof typeof VIDEO_STATUS],
-    currentStatus: typeof VIDEO_STATUS[keyof typeof VIDEO_STATUS] | null
-  ) => {
-    if (!currentStatus) return "upcoming";
-    const stepIndex = STATUS_STEPS.findIndex((step) => step.value === stepValue);
-    const currentIndex = STATUS_STEPS.findIndex((step) => step.value === currentStatus);
-    if (stepIndex < currentIndex) return "completed";
-    if (stepIndex === currentIndex) return "current";
-    return "upcoming";
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case VIDEO_STATUS.TO_DO:
-        return "bg-yellow-600";
-      case VIDEO_STATUS.IN_PROGRESS:
-        return "bg-blue-600";
-      case VIDEO_STATUS.READY_TO_PUBLISH:
-        return "bg-green-600";
-      case VIDEO_STATUS.FINISHED:
-        return "bg-purple-600";
-      default:
-        return "bg-[#424242]";
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case VIDEO_STATUS.TO_DO:
-        return "À faire";
-      case VIDEO_STATUS.IN_PROGRESS:
-        return "En cours";
-      case VIDEO_STATUS.READY_TO_PUBLISH:
-        return "Prêt à publier";
-      case VIDEO_STATUS.FINISHED:
-        return "Terminé";
-      default:
-        return status;
+  // Suppression de la vidéo
+  const handleDeleteVideo = async () => {
+    setIsDeleting(true);
+    setDeleteError("");
+    try {
+      const response = await fetch(`/api/videos/${params.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Échec de la suppression");
+      }
+      router.push("/dashboard");
+    } catch (error: any) {
+      console.error("Erreur lors de la suppression de la vidéo :", error);
+      setDeleteError(error.message);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#212121] text-[#ECECEC] flex items-center justify-center">
-        Chargement...
+      <div className="min-h-screen bg-[#212121] text-[#ECECEC] flex items-center justify-center p-4">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="h-8 w-48 bg-gray-700 rounded mb-4"></div>
+          <div className="h-32 w-full max-w-md bg-gray-700 rounded"></div>
+        </div>
       </div>
     );
   }
 
   if (error || !video) {
-    return (
-      <div className="min-h-screen bg-[#212121] text-[#ECECEC] p-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg">
-            {error || "Vidéo non trouvée"}
-          </div>
-            <button
-              onClick={() => router.back()}
-              className="text-[#ECECEC] hover:text-gray-300 transition-colors duration-200 flex items-center gap-1.5"
-            >
-              <ArrowLeft size={16} /> Retour
-            </button>
-        </div>
-      </div>
-    );
+    return <ErrorState error={error} onBack={() => router.back()} />;
   }
 
   return (
     <div className="min-h-screen bg-[#212121] text-[#ECECEC]">
-      <div className="max-w-6xl mx-auto p-8">
-        {/* En-tête avec titre et statut */}
-        <div className="mb-8">
+      <div className="container mx-auto p-4 md:p-8 max-w-4xl">
+        {/* ------------------ Header (Bouton Retour + Titre en gros + Statut + Bouton Supprimer) ------------------ */}
+        <header className="mb-6">
           <button
             onClick={() => router.back()}
-            className="mb-4 text-[#ECECEC] hover:text-gray-300 transition-colors duration-200"
+            className="inline-flex items-center text-[#ECECEC] hover:text-gray-300 transition-colors"
+            aria-label="Retour"
           >
-            ← Retour
+            <ArrowLeft size={18} />
+            <span className="ml-2">Retour</span>
           </button>
-          <div className="flex items-start justify-between">
-            <h1 className="text-3xl font-semibold flex items-center gap-4">
-              <span className="text-[#424242]">#{video.id}</span>
-              {editingTitle ? (
-                <EditableField
-                  value={newTitle}
-                  onSave={handleTitleUpdate}
-                  inputType="text"
-                  placeholder="Titre de la vidéo..."
-                />
-              ) : (
-                <span onClick={() => setEditingTitle(true)} className="cursor-pointer hover:text-gray-300">
-                  {video.title}
-                </span>
-              )}
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mt-4">
+            <h1 className="text-2xl md:text-3xl font-semibold flex flex-wrap items-center gap-3">
+              <span className="text-gray-500">#{video.id}</span>
+              <EditableItem
+                label=""
+                value={video.title}
+                placeholder="Titre de la vidéo..."
+                onSave={handleTitleUpdate}
+                isLink={false}
+              />
             </h1>
-            <div className={`transition-opacity duration-200 ${isStatusChanging ? "opacity-50" : "opacity-100"}`}>
-              <span className={`px-3 py-1 rounded-full text-sm ${getStatusColor(
-                video.production_status.toString()
-              )}`}>
-                {getStatusText(video.production_status.toString())}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-6">
-          {/* 1. Contenu de la vidéo */}
-          <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
-            <h2 className="text-xl font-medium mb-4">Contenu de la vidéo</h2>
-            <div className="grid gap-4">
-              {/* Titre */}
-              <div className="flex justify-between items-start">
-                <span className="text-gray-400">Titre</span>
-                {editingTitle ? (
-                  <EditableField
-                    value={newTitle}
-                    onSave={handleTitleUpdate}
-                    inputType="text"
-                    placeholder="Titre de la vidéo..."
-                  />
-                ) : (
-                  <span onClick={() => setEditingTitle(true)} className="cursor-pointer hover:text-gray-300 text-right flex-1 ml-4">
-                    {video.title}
-                  </span>
-                )}
-              </div>
-
-              {/* Description */}
-              <div className="flex justify-between items-start">
-                <span className="text-gray-400">Description</span>
-                {editingDescription ? (
-                  <EditableField
-                    value={newDescription}
-                    onSave={handleDescriptionUpdate}
-                    inputType="textarea"
-                    placeholder="Description de la vidéo pour YouTube..."
-                  />
-                ) : (
-                  <span onClick={() => setEditingDescription(true)} className="cursor-pointer hover:text-gray-300 text-right flex-1 ml-4">
-                    {video.description || "Ajouter une description"}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Ressources de production */}
-          <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
-            <h2 className="text-xl font-medium mb-4">Ressources de production</h2>
-            <div className="grid gap-4">
-              {/* Rush Link */}
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Rush brut</span>
-                {editingRushLink ? (
-                  <EditableField
-                    value={newRushLink}
-                    onSave={() => handleLinkUpdate("rush_link", newRushLink, setEditingRushLink)}
-                    inputType="text"
-                    placeholder="Lien vers les rushes..."
-                  />
-                ) : (
-                  <span onClick={() => setEditingRushLink(true)} className="text-blue-400 hover:text-blue-300 cursor-pointer">
-                    {video.rush_link || "Ajouter le lien des rushes"}
-                  </span>
-                )}
-              </div>
-
-              {/* Video Link */}
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Montage final</span>
-                {editingVideoLink ? (
-                  <EditableField
-                    value={newVideoLink}
-                    onSave={() => handleLinkUpdate("video_link", newVideoLink, setEditingVideoLink)}
-                    inputType="text"
-                    placeholder="Lien vers la vidéo montée..."
-                  />
-                ) : (
-                  <span onClick={() => setEditingVideoLink(true)} className="text-blue-400 hover:text-blue-300 cursor-pointer">
-                    {video.video_link || "Ajouter le lien de la vidéo montée"}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Miniature */}
-          <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
-            <h2 className="text-xl font-medium mb-4">Miniature</h2>
-            <div className="grid gap-4">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-400">Instructions</span>
-                {editingInstructions ? (
-                  <EditableField
-                    value={newInstructions}
-                    onSave={handleInstructionsUpdate}
-                    inputType="textarea"
-                    placeholder="Instructions pour le graphiste..."
-                  />
-                ) : (
-                  <span onClick={() => setEditingInstructions(true)} className="cursor-pointer hover:text-gray-300 flex-1 ml-4">
-                    {video.instructions_miniature || "Ajouter les instructions pour la miniature"}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Fichier miniature</span>
-                {editingMiniatureLink ? (
-                  <EditableField
-                    value={newMiniatureLink}
-                    onSave={() =>
-                      handleLinkUpdate("miniature_link", newMiniatureLink, setEditingMiniatureLink)
+            <div className="flex items-center gap-4">
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-semibold transition-opacity duration-200 ${
+                  isStatusChanging ? "opacity-50" : "opacity-100"
+                } ${
+                  (() => {
+                    switch (video.production_status) {
+                      case VIDEO_STATUS.TO_DO:
+                        return "bg-yellow-600";
+                      case VIDEO_STATUS.IN_PROGRESS:
+                        return "bg-blue-600";
+                      case VIDEO_STATUS.READY_TO_PUBLISH:
+                        return "bg-green-600";
+                      case VIDEO_STATUS.FINISHED:
+                        return "bg-purple-600";
+                      default:
+                        return "bg-gray-600";
                     }
-                    inputType="text"
-                    placeholder="Lien vers la miniature..."
-                  />
-                ) : (
-                  <span onClick={() => setEditingMiniatureLink(true)} className="text-blue-400 hover:text-blue-300 cursor-pointer">
-                    {video.miniature_link || "Ajouter le lien de la miniature"}
-                  </span>
-                )}
-              </div>
+                  })()
+                }`}
+              >
+                {(() => {
+                  switch (video.production_status) {
+                    case VIDEO_STATUS.TO_DO:
+                      return "À faire";
+                    case VIDEO_STATUS.IN_PROGRESS:
+                      return "En cours";
+                    case VIDEO_STATUS.READY_TO_PUBLISH:
+                      return "Prêt à publier";
+                    case VIDEO_STATUS.FINISHED:
+                      return "Terminé";
+                    default:
+                      return video.production_status;
+                  }
+                })()}
+              </span>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-black/20 text-red-500 rounded-md transition-colors duration-200 text-sm"
+                disabled={isDeleting}
+              >
+                <Trash2 size={16} />
+                {isDeleting ? "Suppression..." : "Supprimer"}
+              </button>
             </div>
           </div>
+        </header>
 
-          {/* 4. Progression */}
-          <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
-            <h2 className="text-xl font-medium mb-4">Progression</h2>
+        {/* ------------------ Contenu principal ------------------ */}
+        <main className="grid gap-6">
+          <Section title="Contenu de la vidéo">
+            <EditableItem
+              label="Titre"
+              value={video.title}
+              placeholder="Ajouter un titre"
+              onSave={handleTitleUpdate}
+              copyable={true}
+            />
+            <EditableItem
+              label="Description"
+              value={video.description || ""}
+              placeholder="Ajouter une description"
+              onSave={handleDescriptionUpdate}
+              inputType="textarea"
+              copyable={true}
+            />
+          </Section>
+
+          <Section title="Ressources de production">
+            <EditableItem
+              label="Rush brut"
+              value={video.rush_link || ""}
+              placeholder="Ajouter le lien des rushes"
+              onSave={(newVal) => handleLinkUpdate(newVal, "rush_link")}
+              isLink={true}
+            />
+            <EditableItem
+              label="Montage final"
+              value={video.video_link || ""}
+              placeholder="Ajouter le lien de la vidéo montée"
+              onSave={(newVal) => handleLinkUpdate(newVal, "video_link")}
+              isLink={true}
+            />
+          </Section>
+
+          <Section title="Miniature">
+            <EditableItem
+              label="Instructions"
+              value={video.instructions_miniature || ""}
+              placeholder="Ajouter les instructions pour la miniature"
+              onSave={handleInstructionsUpdate}
+              inputType="textarea"
+            />
+            <EditableItem
+              label="Fichier miniature"
+              value={video.miniature_link || ""}
+              placeholder="Ajouter le lien de la miniature"
+              onSave={(newVal) => handleLinkUpdate(newVal, "miniature_link")}
+              isLink={true}
+            />
+          </Section>
+
+          <Section title="Progression">
             <StatusProgress
               currentStatus={video.production_status}
               onStatusChange={handleStatusUpdate}
               isDisabled={isStatusChanging}
             />
-          </div>
+          </Section>
 
-          {/* 5. Informations système */}
-          <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
-            <h2 className="text-xl font-medium mb-4">Informations système</h2>
-            <div className="grid gap-4">
-              <div className="flex justify-between items-center">
+          <Section title="Informations système">
+            <div className="grid gap-3">
+              <div className="flex justify-between">
                 <span className="text-gray-400">Créée le</span>
                 <span>{new Date(video.created_at).toLocaleDateString()}</span>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between">
                 <span className="text-gray-400">Dernière mise à jour</span>
                 <span>{new Date(video.updated_at).toLocaleDateString()}</span>
               </div>
             </div>
+          </Section>
+
+          {deleteError && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500 text-red-500 rounded">
+              {deleteError}
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* ------------------ Modale de confirmation de suppression ------------------ */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#171717] p-6 rounded-lg shadow-xl max-w-md w-full border border-gray-200 dark:border-[#424242]">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-[#ECECEC]">
+              Confirmer la suppression
+            </h2>
+            <p className="mb-6 text-gray-700 dark:text-gray-300">
+              Êtes-vous sûr de vouloir supprimer la vidéo{" "}
+              <strong>{video.title}</strong> ?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-[#424242] dark:hover:bg-[#535353] text-gray-800 dark:text-[#ECECEC] rounded-md transition-colors duration-200 text-sm"
+                disabled={isDeleting}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDeleteVideo}
+                className="px-3 py-1.5 flex items-center gap-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-md transition-colors duration-200 text-sm"
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <>
+                    <svg
+                      className="animate-spin h-4 w-4"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Suppression...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    Confirmer
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

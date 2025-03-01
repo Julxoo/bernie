@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -26,20 +26,20 @@ export default function SignupPage() {
       if (authData.user) {
         // Création du profil utilisateur
         const { error: profileError } = await supabase
-          .from('profiles')
+          .from("profiles")
           .insert([
             {
               id: authData.user.id,
               email: authData.user.email,
-              role: 'user', // rôle par défaut
+              role: "user", // rôle par défaut
               created_at: new Date().toISOString(),
-            }
+            },
           ]);
 
         if (profileError) throw profileError;
         
         // Redirection vers la page de connexion
-        router.push('/login');
+        router.push("/login");
       }
     } catch (error: any) {
       setErrorMsg(error.message);
@@ -52,7 +52,9 @@ export default function SignupPage() {
         <h2 className="text-2xl mb-4">Inscription</h2>
         {errorMsg && <p className="text-red-500 mb-2">{errorMsg}</p>}
         <div className="mb-4">
-          <label htmlFor="email" className="block mb-1">Email</label>
+          <label htmlFor="email" className="block mb-1">
+            Email
+          </label>
           <input
             id="email"
             type="email"
@@ -63,7 +65,9 @@ export default function SignupPage() {
           />
         </div>
         <div className="mb-4">
-          <label htmlFor="password" className="block mb-1">Mot de passe</label>
+          <label htmlFor="password" className="block mb-1">
+            Mot de passe
+          </label>
           <input
             id="password"
             type="password"

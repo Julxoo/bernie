@@ -3,13 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Trash2, ArrowLeft, Save } from "react-feather";
+import { Trash2, ArrowLeft } from "react-feather";
 import CreateVideoModal from "@/components/CreateVideoModal";
 
 interface Video {
   id: number;
   title: string;
-  status: "pending" | "finished" | "ready_to_publish";
+  production_status: string; // Par ex. "À monter", "En cours", "Prêt à publier", "Terminé"
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +35,7 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     fetchCategoryDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
   useEffect(() => {
@@ -45,22 +46,23 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
 
   const fetchCategoryDetails = async () => {
     try {
+      // 1. Récupérer la catégorie
       const { data: categoryData, error: categoryError } = await supabase
         .from("video_categories")
         .select("*")
         .eq("id", params.id)
         .single();
-
       if (categoryError) throw categoryError;
 
+      // 2. Récupérer les vidéos, en sélectionnant la colonne production_status
       const { data: videosData, error: videosError } = await supabase
         .from("category_videos")
-        .select("*")
+        .select("id, title, production_status, created_at, updated_at")
         .eq("category_id", params.id)
         .order("id", { ascending: true });
-
       if (videosError) throw videosError;
 
+      // 3. Mettre à jour le state local
       setCategory({
         ...categoryData,
         videos: videosData || [],
@@ -93,17 +95,13 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
   const handleDeleteCategory = async () => {
     try {
       setIsDeleting(true);
-
       const response = await fetch(`/api/categories/${params.id}`, {
         method: "DELETE",
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Échec de la suppression");
       }
-
-      // Redirection vers le dashboard après suppression réussie
       router.push("/dashboard");
     } catch (err) {
       console.error("Erreur lors de la suppression de la catégorie:", err);
@@ -113,28 +111,27 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
     }
   };
 
+  // Fonctions pour l'affichage du statut
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "ready_to_publish":
-        return "bg-green-600";
-      case "pending":
+      case "À monter":
         return "bg-yellow-600";
+      case "En cours":
+        return "bg-blue-600";
+      case "Prêt à publier":
+        return "bg-green-600";
+      case "Terminé":
+        return "bg-purple-600";
       default:
         return "bg-[#424242]";
     }
   };
 
   const getStatusText = (status: string) => {
-    switch (status) {
-      case "ready_to_publish":
-        return "Prêt à publier";
-      case "pending":
-        return "En cours";
-      case "finished":
-        return "Terminé";
-      default:
-        return status;
-    }
+    // Si vous stockez directement "Terminé", "En cours", etc. dans la BDD,
+    // vous pouvez simplement return status.
+    // Ou personnaliser si nécessaire :
+    return status;
   };
 
   if (isLoading) {
@@ -166,6 +163,7 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
   return (
     <div className="min-h-screen bg-[#212121] text-[#ECECEC]">
       <div className="max-w-6xl mx-auto p-8">
+        {/* En-tête de la catégorie */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
             <button
@@ -185,28 +183,36 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
             </button>
           </div>
 
-          <h1 className="text-3xl font-semibold flex items-center gap-4">
-            <span className="text-[#424242]">{category.identifier}</span>
+          <h1 className="text-2xl md:text-3xl font-semibold flex items-center gap-2 md:gap-4 flex-wrap w-full">
+            <span className="text-[#424242] break-all">
+              {category.identifier}
+            </span>
             {editingTitle ? (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                 <input
                   type="text"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  className="bg-transparent border-b border-[#424242] focus:border-[#ECECEC] outline-none px-1"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleTitleUpdate();
+                    }
+                  }}
+                  className="bg-transparent border-b border-[#424242] focus:border-[#ECECEC] outline-none px-1 w-full sm:w-auto min-w-0"
                   autoFocus
                 />
                 <button
                   onClick={handleTitleUpdate}
-                  className="text-sm px-2 py-1 bg-[#424242] rounded flex items-center gap-1"
+                  className="text-sm px-2 py-1 bg-[#424242] rounded flex items-center gap-1 whitespace-nowrap mt-2 sm:mt-0"
                 >
-                  <Save size={14} /> Sauvegarder
+                  Sauvegarder
                 </button>
               </div>
             ) : (
               <span
                 onClick={() => setEditingTitle(true)}
-                className="cursor-pointer hover:text-gray-300"
+                className="cursor-pointer hover:text-gray-300 break-all"
               >
                 {category.title}
               </span>
@@ -283,6 +289,7 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
 
         {/* Liste des vidéos */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Carte spéciale pour ajouter une nouvelle vidéo */}
           <div
             onClick={() => setIsCreateModalOpen(true)}
             className="bg-[#171717] p-6 rounded-lg border-2 border-dashed border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer flex items-center justify-center min-h-[160px] group"
@@ -299,28 +306,29 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
+          {/* Cartes des vidéos existantes */}
           {category.videos.map((video) => (
             <div
               key={video.id}
               onClick={() => router.push(`/dashboard/videos/${video.id}`)}
-              className="bg-[#171717] p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer"
+              className="relative bg-[#171717] p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer"
             >
+              {/* Badge du statut en haut à droite */}
+              <div className="absolute top-2 right-2">
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-semibold text-white ${getStatusColor(
+                    video.production_status
+                  )}`}
+                >
+                  {getStatusText(video.production_status)}
+                </span>
+              </div>
+
               <div className="flex flex-col h-full">
-                <div className="flex items-start justify-between mb-4">
-                  <h3 className="text-xl font-medium flex-1">{video.title}</h3>
-                  <span
-                    className={`px-3 py-1 rounded-full text-sm ${getStatusColor(
-                      video.status
-                    )} ml-2`}
-                  >
-                    {getStatusText(video.status)}
-                  </span>
-                </div>
-                <div className="mt-auto">
-                  <div className="text-sm text-gray-400">
-                    Dernière mise à jour :{" "}
-                    {new Date(video.updated_at).toLocaleDateString()}
-                  </div>
+                <h3 className="text-xl font-medium mb-2">{video.title}</h3>
+                <div className="mt-auto text-sm text-gray-400">
+                  Dernière mise à jour :{" "}
+                  {new Date(video.updated_at).toLocaleDateString()}
                 </div>
               </div>
             </div>
@@ -333,6 +341,7 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
           )}
         </div>
 
+        {/* Modale de création d'une nouvelle vidéo */}
         <CreateVideoModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}

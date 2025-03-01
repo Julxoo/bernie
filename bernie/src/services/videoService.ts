@@ -3,6 +3,27 @@ import { Video } from "../types/video";
 
 const supabase = createClientComponentClient();
 
+/**
+ * Met à jour un champ donné dans les tables "category_videos" et "video_details".
+ * @param id - L'ID de la vidéo.
+ * @param field - Le nom du champ à mettre à jour.
+ * @param value - La nouvelle valeur.
+ */
+const updateFieldAcrossTables = async (id: string, field: string, value: string): Promise<void> => {
+  const { error: errorVideo } = await supabase
+    .from("category_videos")
+    .update({ [field]: value })
+    .eq("id", id);
+  const { error: errorDetails } = await supabase
+    .from("video_details")
+    .update({ [field]: value })
+    .eq("category_video_id", id);
+
+  if (errorVideo || errorDetails) {
+    throw new Error(`Erreur lors de la mise à jour du champ "${field}"`);
+  }
+};
+
 export const fetchVideoDetails = async (id: string): Promise<Video> => {
   const { data, error } = await supabase
     .from("category_videos")
@@ -25,22 +46,14 @@ export const fetchVideoDetails = async (id: string): Promise<Video> => {
     console.error("Erreur Supabase dans fetchVideoDetails :", error);
     throw error;
   }
-
   if (!data?.video_details || !data.video_details[0]) {
     throw new Error("Détails de la vidéo introuvables");
   }
-
   return { ...data, ...data.video_details[0] } as Video;
 };
 
 export const updateTitle = async (id: string, newTitle: string): Promise<void> => {
-  const updates = await Promise.all([
-    supabase.from("category_videos").update({ title: newTitle }).eq("id", id),
-    supabase.from("video_details").update({ title: newTitle }).eq("category_video_id", id)
-  ]);
-  if (updates.some(({ error }) => error)) {
-    throw new Error("Erreur lors de la mise à jour du titre");
-  }
+  await updateFieldAcrossTables(id, "title", newTitle);
 };
 
 export const updateDescription = async (id: string, newDescription: string): Promise<void> => {
@@ -69,16 +82,10 @@ export const updateLink = async (id: string, field: string, value: string): Prom
     .update({ [field]: value })
     .eq("category_video_id", id);
   if (error) {
-    throw new Error(`Erreur lors de la mise à jour du lien ${field}`);
+    throw new Error(`Erreur lors de la mise à jour du lien "${field}"`);
   }
 };
 
 export const updateStatus = async (id: string, newStatus: string): Promise<void> => {
-  const updates = await Promise.all([
-    supabase.from("category_videos").update({ production_status: newStatus }).eq("id", id),
-    supabase.from("video_details").update({ production_status: newStatus }).eq("category_video_id", id)
-  ]);
-  if (updates.some(({ error }) => error)) {
-    throw new Error("Erreur lors de la mise à jour du statut");
-  }
+  await updateFieldAcrossTables(id, "production_status", newStatus);
 };
