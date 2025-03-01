@@ -13,6 +13,8 @@ export interface Video {
   video_link: string;
   miniature_link: string;
   production_status: Status;
+  identifier?: number;
+  fullIdentifier?: string;
 }
 
 export const VIDEO_STATUS = {

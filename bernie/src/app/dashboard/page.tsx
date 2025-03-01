@@ -15,6 +15,13 @@ interface CategoryWithCounts {
   finished_count: number;
 }
 
+interface VideoCategory {
+  id: number;
+  identifier: string;
+  title: string;
+  category_videos: { production_status: string }[] | null;
+}
+
 export default function DashboardPage() {
   const [categories, setCategories] = useState<CategoryWithCounts[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -26,11 +33,11 @@ export default function DashboardPage() {
   const fetchCategories = useCallback(async () => {
     setIsLoading(true);
     try {
-      // 1. Récupérer catégories + vidéos (avec production_status)
+      // Récupérer les catégories et leurs vidéos associées
       const { data, error } = await supabase
         .from("video_categories")
         .select(`
-          id,
+          id, 
           identifier,
           title,
           category_videos (
@@ -41,13 +48,16 @@ export default function DashboardPage() {
 
       if (error) throw error;
 
-      // 2. Calculer les compteurs
-      const mapped = (data || []).map((cat) => {
+      // On s'assure que data est un tableau de VideoCategory
+      const dataCategories = (data || []) as VideoCategory[];
+
+      // Calculer les compteurs par statut
+      const mapped = dataCategories.map((cat) => {
         let pending_count = 0;
         let ready_to_publish_count = 0;
         let finished_count = 0;
 
-        cat.category_videos?.forEach((video: { production_status: string }) => {
+        cat.category_videos?.forEach((video) => {
           if (video.production_status === "En cours") {
             pending_count++;
           } else if (video.production_status === "Prêt à publier") {
@@ -88,54 +98,61 @@ export default function DashboardPage() {
         </h1>
       </header>
 
-      {error && (
-        <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg mb-6">
-          {error}
+      {isLoading ? (
+        <div className="text-center py-6">
+          Chargement en cours...
         </div>
+      ) : (
+        <>
+          {error && (
+            <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg mb-6">
+              {error}
+            </div>
+          )}
+
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Carte pour ajouter une nouvelle catégorie */}
+            <div
+              onClick={() => setIsCreateModalOpen(true)}
+              className="bg-[#171717] p-5 md:p-6 rounded-lg border border-dashed border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer flex flex-col items-center justify-center hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 md:w-12 md:h-12 bg-[#424242] rounded-full flex items-center justify-center mb-3">
+                +
+              </div>
+              <p className="text-center text-gray-400 text-sm md:text-base">
+                Créer une nouvelle catégorie
+              </p>
+            </div>
+
+            {/* Liste des catégories existantes */}
+            {categories.map((category, index) => (
+              <div
+                key={category.id}
+                onClick={() => router.push(`/dashboard/categories/${category.id}`)}
+                className="bg-[#171717] p-5 md:p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <div className="flex items-center mb-3">
+                  <span className="text-lg md:text-xl font-medium text-[#424242]">
+                    {category.identifier}
+                  </span>
+                  <span className="mx-2 text-lg md:text-xl font-medium text-[#424242]">
+                    |
+                  </span>
+                  <h3 className="text-lg md:text-xl font-medium truncate">
+                    {category.title}
+                  </h3>
+                </div>
+                <div className="flex flex-col text-xs md:text-sm text-gray-400 gap-1">
+                  <span>{category.pending_count} en cours</span>
+                  <span>{category.ready_to_publish_count} prêtes</span>
+                  <span>{category.finished_count} terminées</span>
+                </div>
+              </div>
+            ))}
+          </section>
+        </>
       )}
-
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Carte pour ajouter une nouvelle catégorie */}
-        <div
-          onClick={() => setIsCreateModalOpen(true)}
-          className="bg-[#171717] p-5 md:p-6 rounded-lg border border-dashed border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer flex flex-col items-center justify-center hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
-        >
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-[#424242] rounded-full flex items-center justify-center mb-3">
-            +
-          </div>
-          <p className="text-center text-gray-400 text-sm md:text-base">
-            Créer une nouvelle catégorie
-          </p>
-        </div>
-
-        {/* Liste des catégories existantes */}
-        {categories.map((category, index) => (
-          <div
-            key={category.id}
-            onClick={() => router.push(`/dashboard/categories/${category.id}`)}
-            className="bg-[#171717] p-5 md:p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
-            style={{ animationDelay: `${index * 50}ms` }}
-          >
-            {/* Contenu de la carte */}
-            <div className="flex items-center mb-3">
-              <span className="text-lg md:text-xl font-medium text-[#424242]">
-                {category.identifier}
-              </span>
-              <span className="mx-2 text-lg md:text-xl font-medium text-[#424242]">
-                |
-              </span>
-              <h3 className="text-lg md:text-xl font-medium truncate">
-                {category.title}
-              </h3>
-            </div>
-            <div className="flex flex-col text-xs md:text-sm text-gray-400 gap-1">
-              <span>{category.pending_count} en cours</span>
-              <span>{category.ready_to_publish_count} prêtes</span>
-              <span>{category.finished_count} terminées</span>
-            </div>
-          </div>
-        ))}
-      </section>
 
       <CreateCategoryModal
         isOpen={isCreateModalOpen}

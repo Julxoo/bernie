@@ -9,14 +9,15 @@ import CreateVideoModal from "@/components/CreateVideoModal";
 interface Video {
   id: number;
   title: string;
-  production_status: string; // Par ex. "À monter", "En cours", "Prêt à publier", "Terminé"
+  production_status: string; // Ex. "À monter", "En cours", "Prêt à publier", "Terminé"
   created_at: string;
   updated_at: string;
+  identifier: number; // Identifiant numérique de la vidéo
 }
 
 interface Category {
   id: number;
-  identifier: string;
+  identifier: string; // Par ex. "A"
   title: string;
   videos: Video[];
 }
@@ -54,10 +55,10 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
         .single();
       if (categoryError) throw categoryError;
 
-      // 2. Récupérer les vidéos, en sélectionnant la colonne production_status
+      // 2. Récupérer les vidéos associées à la catégorie
       const { data: videosData, error: videosError } = await supabase
         .from("category_videos")
-        .select("id, title, production_status, created_at, updated_at")
+        .select("id, identifier, title, production_status, created_at, updated_at")
         .eq("category_id", params.id)
         .order("id", { ascending: true });
       if (videosError) throw videosError;
@@ -81,7 +82,6 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
         .from("video_categories")
         .update({ title: newTitle })
         .eq("id", params.id);
-
       if (error) throw error;
 
       setCategory((prev) => (prev ? { ...prev, title: newTitle } : null));
@@ -128,9 +128,6 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
   };
 
   const getStatusText = (status: string) => {
-    // Si vous stockez directement "Terminé", "En cours", etc. dans la BDD,
-    // vous pouvez simplement return status.
-    // Ou personnaliser si nécessaire :
     return status;
   };
 
@@ -172,7 +169,6 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
             >
               <ArrowLeft size={16} /> Retour
             </button>
-
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-black/20 text-red-500 rounded-md transition-colors duration-200 text-sm"
@@ -182,11 +178,8 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
               {isDeleting ? "Suppression..." : "Supprimer"}
             </button>
           </div>
-
           <h1 className="text-2xl md:text-3xl font-semibold flex items-center gap-2 md:gap-4 flex-wrap w-full">
-            <span className="text-[#424242] break-all">
-              {category.identifier}
-            </span>
+            <span className="break-all">{category.identifier}</span>
             {editingTitle ? (
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                 <input
@@ -229,7 +222,7 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
               </h2>
               <p className="mb-6 text-gray-700 dark:text-gray-300">
                 Êtes-vous sûr de vouloir supprimer la catégorie{" "}
-                <strong>{category.title}</strong> ?
+                <strong>{category.title}</strong> ?{" "}
                 {category.videos.length > 0 && (
                   <span className="block mt-2 text-red-500 dark:text-red-400">
                     Cette catégorie contient {category.videos.length} vidéo
@@ -307,32 +300,37 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
           </div>
 
           {/* Cartes des vidéos existantes */}
-          {category.videos.map((video) => (
-            <div
-              key={video.id}
-              onClick={() => router.push(`/dashboard/videos/${video.id}`)}
-              className="relative bg-[#171717] p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer"
-            >
-              {/* Badge du statut en haut à droite */}
-              <div className="absolute top-2 right-2">
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-semibold text-white ${getStatusColor(
-                    video.production_status
-                  )}`}
-                >
-                  {getStatusText(video.production_status)}
-                </span>
-              </div>
-
-              <div className="flex flex-col h-full">
-                <h3 className="text-xl font-medium mb-2">{video.title}</h3>
-                <div className="mt-auto text-sm text-gray-400">
-                  Dernière mise à jour :{" "}
-                  {new Date(video.updated_at).toLocaleDateString()}
+          {category.videos.map((video) => {
+            // Construire l'identifiant complet : ex. "A-2"
+            const fullIdentifier = `${category.identifier}-${video.identifier}`;
+            return (
+              <div
+                key={video.id}
+                onClick={() => router.push(`/dashboard/videos/${video.id}`)}
+                className="relative bg-[#171717] p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer"
+              >
+                {/* Badge du statut */}
+                <div className="absolute top-2 right-2">
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-semibold text-white ${getStatusColor(
+                      video.production_status
+                    )}`}
+                  >
+                    {getStatusText(video.production_status)}
+                  </span>
+                </div>
+                <div className="flex flex-col h-full">
+                  <h3 className="text-xl font-medium mb-2">
+                    {fullIdentifier} {video.title}
+                  </h3>
+                  <div className="mt-auto text-sm text-gray-400">
+                    Dernière mise à jour :{" "}
+                    {new Date(video.updated_at).toLocaleDateString()}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {category.videos.length === 0 && (
             <div className="col-span-full text-center py-12 text-gray-400">
@@ -347,7 +345,8 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
           onClose={() => setIsCreateModalOpen(false)}
           onSuccess={fetchCategoryDetails}
           categoryId={params.id}
-          categoryTitle={category.title}
+          categoryIdentifier={category.identifier} // Pour générer l'identifiant complet, ex. "A-1"
+          categoryTitle={category.title} // Pour afficher le nom complet de la catégorie
         />
       </div>
     </div>

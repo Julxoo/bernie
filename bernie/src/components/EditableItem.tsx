@@ -20,7 +20,6 @@ export default function EditableItem({
   placeholder,
   onSave,
   inputType = "text",
-  isLink = false,
   copyable = false,
 }: EditableItemProps) {
   const [copied, setCopied] = useState(false);

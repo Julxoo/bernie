@@ -89,6 +89,13 @@ const nextConfig = {
 export default nextConfig;
 
 
+===== .eslintrc.js =====
+Chemin : ./.eslintrc.js
+module.exports = {
+  extends: ["next/core-web-vitals", "next/typescript"],
+};
+
+
 ===== listfiles.py =====
 Chemin : ./listfiles.py
 import os
@@ -150,27 +157,20 @@ if __name__ == "__main__":
 
 ===== middleware.ts =====
 Chemin : ./src/middleware.ts
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
+// src/middleware.ts
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (
-    !session &&
-    (req.nextUrl.pathname.startsWith("/dashboard") ||
-      req.nextUrl.pathname.startsWith("/api"))
-  ) {
+  // Vérification de la présence d'un token NextAuth
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  
+  if (!token) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
-
-  return res;
+  
+  return NextResponse.next();
 }
 
 export const config = {
@@ -253,13 +253,37 @@ import { Video } from "../types/video";
 
 const supabase = createClientComponentClient();
 
+// Interface décrivant la structure attendue des données retournées par Supabase
+interface VideoDetailsResult {
+  id: number;
+  identifier: number;
+  title: string;
+  production_status: string;
+  created_at: string;
+  updated_at: string;
+  video_details: Array<{
+    title: string;
+    instructions_miniature: string;
+    rush_link: string;
+    video_link: string;
+    miniature_link: string;
+    production_status: string;
+    description: string;
+  }>;
+  video_categories: { identifier: string }[] | null;
+}
+
 /**
  * Met à jour un champ donné dans les tables "category_videos" et "video_details".
  * @param id - L'ID de la vidéo.
  * @param field - Le nom du champ à mettre à jour.
  * @param value - La nouvelle valeur.
  */
-const updateFieldAcrossTables = async (id: string, field: string, value: string): Promise<void> => {
+const updateFieldAcrossTables = async (
+  id: string,
+  field: string,
+  value: string
+): Promise<void> => {
   const { error: errorVideo } = await supabase
     .from("category_videos")
     .update({ [field]: value })
@@ -277,8 +301,14 @@ const updateFieldAcrossTables = async (id: string, field: string, value: string)
 export const fetchVideoDetails = async (id: string): Promise<Video> => {
   const { data, error } = await supabase
     .from("category_videos")
-    .select(`
-      *,
+    .select(
+      `
+      id,
+      identifier,
+      title,
+      production_status,
+      created_at,
+      updated_at,
       video_details (
         title,
         instructions_miniature,
@@ -287,8 +317,10 @@ export const fetchVideoDetails = async (id: string): Promise<Video> => {
         miniature_link,
         production_status,
         description
-      )
-    `)
+      ),
+      video_categories!fk_category (identifier)
+    `
+    )
     .eq("id", id)
     .single();
 
@@ -296,17 +328,38 @@ export const fetchVideoDetails = async (id: string): Promise<Video> => {
     console.error("Erreur Supabase dans fetchVideoDetails :", error);
     throw error;
   }
-  if (!data?.video_details || !data.video_details[0]) {
+  if (!data) {
     throw new Error("Détails de la vidéo introuvables");
   }
-  return { ...data, ...data.video_details[0] } as Video;
+
+  // Conversion via unknown pour ensuite le caster en VideoDetailsResult
+  const parsedData = data as unknown as VideoDetailsResult;
+  const { video_categories, video_details, ...rest } = parsedData;
+  const categoryIdentifier =
+    video_categories && video_categories.length > 0
+      ? video_categories[0].identifier
+      : "";
+  const numericIdentifier = parsedData.identifier || 0;
+  const fullIdentifier = `${categoryIdentifier}-${numericIdentifier}`;
+
+  return {
+    ...rest,
+    ...(video_details ? video_details[0] : {}),
+    fullIdentifier,
+  } as Video;
 };
 
-export const updateTitle = async (id: string, newTitle: string): Promise<void> => {
+export const updateTitle = async (
+  id: string,
+  newTitle: string
+): Promise<void> => {
   await updateFieldAcrossTables(id, "title", newTitle);
 };
 
-export const updateDescription = async (id: string, newDescription: string): Promise<void> => {
+export const updateDescription = async (
+  id: string,
+  newDescription: string
+): Promise<void> => {
   const { error } = await supabase
     .from("video_details")
     .update({ description: newDescription })
@@ -316,7 +369,10 @@ export const updateDescription = async (id: string, newDescription: string): Pro
   }
 };
 
-export const updateInstructions = async (id: string, newInstructions: string): Promise<void> => {
+export const updateInstructions = async (
+  id: string,
+  newInstructions: string
+): Promise<void> => {
   const { error } = await supabase
     .from("video_details")
     .update({ instructions_miniature: newInstructions })
@@ -326,7 +382,11 @@ export const updateInstructions = async (id: string, newInstructions: string): P
   }
 };
 
-export const updateLink = async (id: string, field: string, value: string): Promise<void> => {
+export const updateLink = async (
+  id: string,
+  field: string,
+  value: string
+): Promise<void> => {
   const { error } = await supabase
     .from("video_details")
     .update({ [field]: value })
@@ -336,16 +396,21 @@ export const updateLink = async (id: string, field: string, value: string): Prom
   }
 };
 
-export const updateStatus = async (id: string, newStatus: string): Promise<void> => {
+export const updateStatus = async (
+  id: string,
+  newStatus: string
+): Promise<void> => {
   await updateFieldAcrossTables(id, "production_status", newStatus);
 };
 
 
 ===== Sidebar.tsx =====
 Chemin : ./src/components/Sidebar.tsx
+// src/components/Sidebar.tsx
 "use client";
 
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -354,6 +419,8 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, onToggle, onSignOut }: SidebarProps) {
+  const { data: session } = useSession(); // Ce hook fonctionne maintenant car l'application est enveloppée dans SessionProvider
+
   return (
     <aside
       className={`fixed inset-y-0 left-0 transform transition-transform duration-300 ease-in-out z-40 w-64 bg-[#171717] flex flex-col border-r border-[#424242] ${
@@ -374,7 +441,53 @@ export default function Sidebar({ isOpen, onToggle, onSignOut }: SidebarProps) {
               Catégories
             </Link>
           </li>
-          {/* Ajoutez ici d'autres liens de navigation si nécessaire */}
+          <li>
+            <Link
+              href="/dashboard/stats"
+              className="text-[#ECECEC] hover:text-gray-300 block py-2"
+              onClick={onToggle}
+            >
+              Statistiques
+            </Link>
+          </li>
+          <li>
+            <Link
+              href="/dashboard/alerts"
+              className="text-[#ECECEC] hover:text-gray-300 block py-2"
+              onClick={onToggle}
+            >
+              Alertes
+            </Link>
+          </li>
+          <li>
+            <Link
+              href="/dashboard/priorities"
+              className="text-[#ECECEC] hover:text-gray-300 block py-2"
+              onClick={onToggle}
+            >
+              Priorités
+            </Link>
+          </li>
+          <li>
+            <Link
+              href="/dashboard/performance"
+              className="text-[#ECECEC] hover:text-gray-300 block py-2"
+              onClick={onToggle}
+            >
+              Performance
+            </Link>
+          </li>
+          {session?.user?.role === "admin" && (
+            <li>
+              <Link
+                href="/dashboard/admin"
+                className="text-[#ECECEC] hover:text-gray-300 block py-2"
+                onClick={onToggle}
+              >
+                Administration
+              </Link>
+            </li>
+          )}
         </ul>
       </nav>
       <div className="p-4 border-t border-[#424242]">
@@ -414,7 +527,6 @@ export default function EditableItem({
   placeholder,
   onSave,
   inputType = "text",
-  isLink = false,
   copyable = false,
 }: EditableItemProps) {
   const [copied, setCopied] = useState(false);
@@ -465,7 +577,7 @@ Chemin : ./src/components/EditableField.tsx
 import { useEditable } from "../hooks/useEditable";
 import { isUrl } from "../utils/urlUtils";
 import React from "react";
-import { ExternalLink, Edit } from "react-feather";
+import { ExternalLink } from "react-feather";
 
 interface EditableFieldProps {
   value: string;
@@ -570,7 +682,7 @@ export function EditableField({
       ) : (
         <span
           onClick={() => setEditing(true)}
-          className="cursor-pointer text-gray-500 italic p-1 rounded hover:bg-[#2a2a2a] transition-colors"
+          className="cursor-pointer italic p-1 rounded hover:bg-[#2a2a2a] transition-colors"
         >
           {placeholder}
         </span>
@@ -584,15 +696,16 @@ export function EditableField({
 Chemin : ./src/components/CreateVideoModal.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 interface CreateVideoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  categoryId: string;
-  categoryIdentifier: string; // Exemple : "A"
+  categoryId: string; // ID numérique de la catégorie
+  categoryIdentifier: string; // Par ex. "A"
+  categoryTitle: string; // Par ex. "Vidéo Grattage/Casino"
 }
 
 export default function CreateVideoModal({
@@ -601,40 +714,58 @@ export default function CreateVideoModal({
   onSuccess,
   categoryId,
   categoryIdentifier,
+  categoryTitle,
 }: CreateVideoModalProps) {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [title, setTitle] = useState("");
+
+  // Identifiant numérique de la vidéo (ex. 1, 2, 3...)
+  const [videoIdentifier, setVideoIdentifier] = useState<number>(0);
+
+  // Titre de la vidéo
+  const [videoTitle, setVideoTitle] = useState("");
+
   const supabase = createClientComponentClient();
 
-  // Statut de production par défaut (à adapter si besoin)
-  const defaultProductionStatus = "À monter";
+  const fetchNextVideoIdentifier = useCallback(async () => {
+    try {
+      setError("");
 
-  // Au moment d'ouverture du modal, on récupère le nombre de vidéos existantes
-  // pour générer le titre par défaut.
+      // Récupérer le plus grand "identifier" existant dans la catégorie
+      const { data, error } = await supabase
+        .from("category_videos")
+        .select("identifier")
+        .eq("category_id", Number(categoryId))
+        .order("identifier", { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      // S'il n'y a aucune vidéo, on part de 0
+      const lastIdentifier = data && data.length > 0 ? data[0].identifier : 0;
+      const nextIdentifier = lastIdentifier + 1;
+      setVideoIdentifier(nextIdentifier);
+    } catch (err: unknown) {
+      console.error(
+        "Erreur lors de la récupération de l'identifiant vidéo:",
+        err
+      );
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError(
+          "Erreur inconnue lors de la récupération de l'identifiant vidéo"
+        );
+      }
+    }
+  }, [supabase, categoryId]);
+
   useEffect(() => {
     if (isOpen) {
-      const fetchCountAndSetTitle = async () => {
-        try {
-          const { count, error: countError } = await supabase
-            .from("category_videos")
-            .select("*", { count: "exact", head: true })
-            .eq("category_id", Number(categoryId));
-
-          if (countError) throw countError;
-
-          const videoNumber = (count || 0) + 1;
-          const generatedTitle = `${categoryIdentifier}-${videoNumber}`;
-          setTitle(generatedTitle);
-        } catch (err: any) {
-          console.error("Erreur lors du comptage des vidéos:", err);
-          setError(err.message);
-        }
-      };
-
-      fetchCountAndSetTitle();
+      fetchNextVideoIdentifier();
+      setVideoTitle(""); // reset du champ titre
     }
-  }, [isOpen, categoryId, categoryIdentifier, supabase]);
+  }, [isOpen, fetchNextVideoIdentifier]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -642,46 +773,54 @@ export default function CreateVideoModal({
     setIsLoading(true);
 
     try {
-      const finalTitle = title.trim();
-      if (!finalTitle) {
-        throw new Error("Le titre ne peut être vide");
+      if (!videoTitle.trim()) {
+        throw new Error("Le titre de la vidéo ne peut être vide.");
+      }
+      if (videoIdentifier <= 0) {
+        throw new Error("L'identifiant de la vidéo est invalide.");
       }
 
-      // Insertion dans la table category_videos
-      const { data: categoryVideoData, error: categoryVideoError } = await supabase
+      // Exemple de statut par défaut
+      const defaultProductionStatus = "À monter";
+
+      // 1. Insertion dans category_videos
+      const { data: inserted, error: insertError } = await supabase
         .from("category_videos")
         .insert([
           {
             category_id: Number(categoryId),
-            title: finalTitle,
+            identifier: videoIdentifier, // On insère l'identifiant numérique
+            title: videoTitle,
             production_status: defaultProductionStatus,
           },
         ])
         .select()
         .single();
 
-      if (categoryVideoError) throw categoryVideoError;
+      if (insertError) throw insertError;
 
-      // Insertion dans la table video_details avec l'ID généré
-      const { data: videoDetailsData, error: videoDetailsError } = await supabase
+      // 2. Insertion dans video_details (optionnel, si vous l'utilisez)
+      const { error: detailsError } = await supabase
         .from("video_details")
         .insert([
           {
-            category_video_id: categoryVideoData.id,
-            title: finalTitle,
+            category_video_id: inserted.id,
+            title: videoTitle,
             production_status: defaultProductionStatus,
           },
-        ])
-        .select()
-        .single();
+        ]);
 
-      if (videoDetailsError) throw videoDetailsError;
+      if (detailsError) throw detailsError;
 
       onSuccess();
       onClose();
-    } catch (err: any) {
-      console.error("Erreur lors de l'ajout de la vidéo :", err);
-      setError(err.message);
+    } catch (err: unknown) {
+      console.error("Erreur lors de la création de la vidéo :", err);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Erreur inconnue lors de la création de la vidéo");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -689,65 +828,123 @@ export default function CreateVideoModal({
 
   if (!isOpen) return null;
 
+  // Identifiant complet ex. "A-1"
+  const fullIdentifier = `${categoryIdentifier}-${videoIdentifier}`;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
-      <div className="bg-[#171717] p-8 rounded-lg w-full max-w-md border border-[#424242]">
-        <h2 className="text-2xl font-semibold mb-6 text-[#ECECEC]">Nouvelle vidéo</h2>
+    <div
+      className="
+        fixed inset-0 bg-black bg-opacity-50
+        flex items-center justify-center z-50
+        px-4 py-4
+      "
+    >
+      <div
+        className="
+          bg-[#171717]
+          p-4 sm:p-8
+          rounded-lg
+          w-full max-w-md
+          border border-[#424242]
+        "
+      >
+        <h2 className="text-2xl font-semibold mb-6 text-[#ECECEC]">
+          Nouvelle vidéo
+        </h2>
         {error && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500 text-red-500 rounded">
             {error}
           </div>
         )}
+
         <form onSubmit={handleSubmit}>
+          {/* Catégorie (en lecture seule) */}
           <div className="mb-4">
             <label
-              htmlFor="category"
+              htmlFor="categoryName"
               className="block mb-2 text-sm font-medium text-[#ECECEC]"
             >
               Catégorie
             </label>
             <input
-              id="category"
+              id="categoryName"
               type="text"
-              value={categoryIdentifier}
-              className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC] cursor-not-allowed opacity-50"
+              value={categoryTitle}
+              className="
+                w-full p-3 rounded-lg bg-[#212121]
+                border border-[#424242]
+                text-[#ECECEC]
+                cursor-not-allowed opacity-50
+              "
               readOnly
               disabled
             />
           </div>
+
+          {/* Identifiant complet (lecture seule, non modifiable) */}
+          <div className="mb-4">
+            <label className="block mb-2 text-sm font-medium text-[#ECECEC]">
+              Identifiant complet
+            </label>
+            <div
+              className="
+                w-full p-3 rounded-lg bg-[#212121]
+                border border-[#424242]
+                text-[#ECECEC]
+                cursor-not-allowed opacity-50
+              "
+            >
+              {fullIdentifier}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Cet identifiant est généré automatiquement.
+            </p>
+          </div>
+
+          {/* Titre de la vidéo */}
           <div className="mb-4">
             <label
-              htmlFor="title"
+              htmlFor="videoTitle"
               className="block mb-2 text-sm font-medium text-[#ECECEC]"
             >
               Titre de la vidéo
             </label>
             <input
-              id="title"
+              id="videoTitle"
               type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC]"
-              placeholder="Titre de la vidéo..."
+              value={videoTitle}
+              onChange={(e) => setVideoTitle(e.target.value)}
+              className="
+                w-full p-3 rounded-lg bg-[#212121]
+                border border-[#424242]
+                text-[#ECECEC]
+                focus:outline-none focus:border-[#ECECEC]
+              "
+              placeholder="Saisissez un titre pour la vidéo..."
               required
               disabled={isLoading}
             />
           </div>
-          <p className="text-sm text-gray-400 mb-4">
-            Vous pouvez modifier le titre si nécessaire. Par défaut, il est généré au format {categoryIdentifier}-X.
-          </p>
+
           <div className="flex justify-end gap-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-[#ECECEC] rounded-lg hover:bg-[#212121] transition-colors duration-200"
+              className="
+                px-4 py-2 text-[#ECECEC] rounded-lg
+                hover:bg-[#212121] transition-colors duration-200
+              "
               disabled={isLoading}
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200 border border-[#424242] disabled:opacity-50"
+              className="
+                px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg
+                hover:bg-[#171717] transition-colors duration-200
+                border border-[#424242] disabled:opacity-50
+              "
               disabled={isLoading}
             >
               {isLoading ? "Ajout en cours..." : "Ajouter"}
@@ -834,11 +1031,13 @@ export default function ErrorState({ error, onBack }: ErrorStateProps) {
 
 ===== DashboardLayout.tsx =====
 Chemin : ./src/components/DashboardLayout.tsx
+// src/components/DashboardLayout.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
+import { signOut } from "next-auth/react";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -850,7 +1049,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const handleSignOut = async () => {
     try {
-      // Implémentez ici la logique de déconnexion (exemple : await supabase.auth.signOut())
+      // Utilisation de signOut de NextAuth pour terminer la session
+      await signOut({ redirect: false });
       router.push("/login");
     } catch (error) {
       console.error("Erreur lors de la déconnexion:", error);
@@ -905,7 +1105,7 @@ export default function Section({ title, children }: SectionProps) {
 
 ===== StatusProgress.tsx =====
 Chemin : ./src/components/StatusProgress.tsx
-import { VIDEO_STATUS, Status } from "../types/video";
+import { Status } from "../types/video";
 import { STATUS_STEPS } from "../constants/videoConstants";
 
 interface StatusProgressProps {
@@ -925,36 +1125,6 @@ export function StatusProgress({
     if (stepIndex < currentIndex) return "completed";
     if (stepIndex === currentIndex) return "current";
     return "upcoming";
-  };
-
-  const getStatusColor = (status: Status) => {
-    switch (status) {
-      case VIDEO_STATUS.TO_DO:
-        return "bg-yellow-600";
-      case VIDEO_STATUS.IN_PROGRESS:
-        return "bg-blue-600";
-      case VIDEO_STATUS.READY_TO_PUBLISH:
-        return "bg-green-600";
-      case VIDEO_STATUS.FINISHED:
-        return "bg-purple-600";
-      default:
-        return "bg-gray-600";
-    }
-  };
-
-  const getStatusText = (status: Status) => {
-    switch (status) {
-      case VIDEO_STATUS.TO_DO:
-        return "À faire";
-      case VIDEO_STATUS.IN_PROGRESS:
-        return "En cours";
-      case VIDEO_STATUS.READY_TO_PUBLISH:
-        return "Prêt à publier";
-      case VIDEO_STATUS.FINISHED:
-        return "Terminé";
-      default:
-        return status;
-    }
   };
 
   return (
@@ -993,14 +1163,25 @@ export function StatusProgress({
 }
 
 
+===== Providers.tsx =====
+Chemin : ./src/components/Providers.tsx
+"use client";
+
+import { SessionProvider } from "next-auth/react";
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return <SessionProvider>{children}</SessionProvider>;
+}
+
+
 ===== CreateCategoryModal.tsx =====
 Chemin : ./src/components/CreateCategoryModal.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
-interface CreateCategoryModalProps {
+interface CreateVideoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -1008,7 +1189,9 @@ interface CreateCategoryModalProps {
 
 const getNextLetter = (existingIdentifiers: string[]): string => {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const usedLetters = new Set(existingIdentifiers.map((id) => id.toUpperCase()));
+  const usedLetters = new Set(
+    existingIdentifiers.map((id) => id.toUpperCase())
+  );
   for (const letter of alphabet) {
     if (!usedLetters.has(letter)) {
       return letter;
@@ -1017,40 +1200,45 @@ const getNextLetter = (existingIdentifiers: string[]): string => {
   return "Z"; // Retourne 'Z' si tous les identifiants sont utilisés
 };
 
-export default function CreateCategoryModal({
+export default function CreateVideoModal({
   isOpen,
   onClose,
   onSuccess,
-}: CreateCategoryModalProps) {
+}: CreateVideoModalProps) {
   const [identifier, setIdentifier] = useState("");
   const [title, setTitle] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const supabase = createClientComponentClient();
 
-  useEffect(() => {
-    const fetchNextIdentifier = async () => {
-      if (isOpen) {
-        try {
-          const { data: categories, error } = await supabase
-            .from("video_categories")
-            .select("identifier");
+  const fetchNextVideoIdentifier = useCallback(async () => {
+    if (isOpen) {
+      try {
+        const { data: categories, error } = await supabase
+          .from("video_categories")
+          .select("identifier");
 
-          if (error) throw error;
+        if (error) throw error;
 
-          const existingIdentifiers = categories?.map(
-            (cat: { identifier: string }) => cat.identifier
-          ) || [];
-          const nextLetter = getNextLetter(existingIdentifiers);
-          setIdentifier(nextLetter);
-        } catch (err: any) {
+        const existingIdentifiers =
+          categories?.map((cat: { identifier: string }) => cat.identifier) ||
+          [];
+        const nextLetter = getNextLetter(existingIdentifiers);
+        setIdentifier(nextLetter);
+      } catch (err: unknown) {
+        console.error("Erreur lors de la récupération de l'identifiant :", err);
+        if (err instanceof Error) {
           setError(err.message);
+        } else {
+          setError("Erreur inconnue lors de la récupération de l'identifiant");
         }
       }
-    };
-
-    fetchNextIdentifier();
+    }
   }, [isOpen, supabase]);
+
+  useEffect(() => {
+    fetchNextVideoIdentifier();
+  }, [fetchNextVideoIdentifier]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1068,9 +1256,13 @@ export default function CreateCategoryModal({
       setTitle("");
       onSuccess();
       onClose();
-    } catch (err: any) {
-      console.error("Erreur lors de la création de la catégorie :", err);
-      setError(err.message);
+    } catch (err: unknown) {
+      console.error("Erreur lors de la création de la vidéo :", err);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Erreur inconnue lors de la création de la vidéo");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -1079,9 +1271,25 @@ export default function CreateCategoryModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-[#171717] p-8 rounded-lg w-full max-w-md border border-[#424242]">
-        <h2 className="text-2xl font-semibold mb-6 text-[#ECECEC]">Nouvelle catégorie</h2>
+    <div
+      className="
+        fixed inset-0 bg-black bg-opacity-50 
+        flex items-center justify-center z-50 
+        px-4 py-4
+      "
+    >
+      <div
+        className="
+          bg-[#171717] 
+          p-4 sm:p-8
+          rounded-lg 
+          w-full max-w-md 
+          border border-[#424242]
+        "
+      >
+        <h2 className="text-2xl font-semibold mb-6 text-[#ECECEC]">
+          Nouvelle vidéo
+        </h2>
         {error && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500 text-red-500 rounded">
             {error}
@@ -1089,7 +1297,10 @@ export default function CreateCategoryModal({
         )}
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label htmlFor="identifier" className="block mb-2 text-sm font-medium text-[#ECECEC]">
+            <label
+              htmlFor="identifier"
+              className="block mb-2 text-sm font-medium text-[#ECECEC]"
+            >
               Identifiant
             </label>
             <input
@@ -1098,12 +1309,21 @@ export default function CreateCategoryModal({
               value={identifier}
               readOnly
               disabled
-              className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC] cursor-not-allowed opacity-50"
+              className="
+                w-full p-3 rounded-lg bg-[#212121] 
+                border border-[#424242] 
+                text-[#ECECEC] 
+                focus:outline-none focus:border-[#ECECEC] 
+                cursor-not-allowed opacity-50
+              "
               required
             />
           </div>
           <div className="mb-6">
-            <label htmlFor="title" className="block mb-2 text-sm font-medium text-[#ECECEC]">
+            <label
+              htmlFor="title"
+              className="block mb-2 text-sm font-medium text-[#ECECEC]"
+            >
               Titre
             </label>
             <input
@@ -1111,7 +1331,12 @@ export default function CreateCategoryModal({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC]"
+              className="
+                w-full p-3 rounded-lg bg-[#212121] 
+                border border-[#424242] 
+                text-[#ECECEC] 
+                focus:outline-none focus:border-[#ECECEC]
+              "
               required
               disabled={isLoading}
             />
@@ -1120,14 +1345,21 @@ export default function CreateCategoryModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-[#ECECEC] rounded-lg hover:bg-[#212121] transition-colors duration-200"
+              className="
+                px-4 py-2 text-[#ECECEC] rounded-lg 
+                hover:bg-[#212121] transition-colors duration-200
+              "
               disabled={isLoading}
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200 border border-[#424242] disabled:opacity-50"
+              className="
+                px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg 
+                hover:bg-[#171717] transition-colors duration-200 
+                border border-[#424242] disabled:opacity-50
+              "
               disabled={isLoading}
             >
               {isLoading ? "Création..." : "Créer"}
@@ -1170,9 +1402,11 @@ export const STATUS_STEPS: StatusStep[] = [
 
 ===== layout.tsx =====
 Chemin : ./src/app/layout.tsx
+// src/app/layout.tsx
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import React from "react";
+import { Providers } from "@/components/Providers"; // Import du composant client
 import "./globals.css";
 
 const inter = Inter({
@@ -1193,7 +1427,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} antialiased`}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
@@ -1243,116 +1477,33 @@ export default function Home() {
 }
 
 
-===== page.tsx =====
-Chemin : ./src/app/signup/page.tsx
-"use client";
+===== route.ts =====
+Chemin : ./src/app/api/admin/route.ts
+// src/app/api/admin/route.ts
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/utils/supabaseClient";
+export async function GET() {
+  const supabase = createRouteHandlerClient({ cookies });
+  const { data: { session }, error: authError } = await supabase.auth.getSession();
+  if (authError || !session || session.user.role !== "admin") {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
 
-export default function SignupPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  const router = useRouter();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg("");
-    
-    try {
-      // Inscription avec Supabase
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (authError) throw authError;
-
-      if (authData.user) {
-        // Création du profil utilisateur
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .insert([
-            {
-              id: authData.user.id,
-              email: authData.user.email,
-              role: "user", // rôle par défaut
-              created_at: new Date().toISOString(),
-            },
-          ]);
-
-        if (profileError) throw profileError;
-        
-        // Redirection vers la page de connexion
-        router.push("/login");
-      }
-    } catch (error: any) {
-      setErrorMsg(error.message);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
-      <form onSubmit={handleSubmit} className="p-6 bg-gray-800 rounded-md shadow-md">
-        <h2 className="text-2xl mb-4">Inscription</h2>
-        {errorMsg && <p className="text-red-500 mb-2">{errorMsg}</p>}
-        <div className="mb-4">
-          <label htmlFor="email" className="block mb-1">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="p-2 rounded w-full text-black"
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label htmlFor="password" className="block mb-1">
-            Mot de passe
-          </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="p-2 rounded w-full text-black"
-            required
-          />
-        </div>
-        <button type="submit" className="w-full bg-blue-600 py-2 rounded hover:bg-blue-700">
-          S'inscrire
-        </button>
-      </form>
-    </div>
-  );
+  // Ici, mettez la logique de votre API pour les admins
+  return NextResponse.json({ message: "Bienvenue dans l'API d'administration" });
 }
 
 
 ===== route.ts =====
 Chemin : ./src/app/api/videos/route.ts
-// src/app/api/videos/route.ts
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-/**
- * Fonction utilitaire qui vérifie l'authentification avant d'exécuter le callback.
- */
-const withAuth = async (req: Request, callback: (supabase: any) => Promise<NextResponse>) => {
-  const supabase = createRouteHandlerClient({ cookies });
-  const { data: { session }, error: authError } = await supabase.auth.getSession();
-  if (authError || !session) {
-    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
-  }
-  return callback(supabase);
-};
-
+// Schéma de validation pour la création d'une vidéo
 const videoSchema = z.object({
   category_id: z.number(),
   title: z.string().min(1, "Le titre est requis"),
@@ -1363,19 +1514,33 @@ const videoSchema = z.object({
   miniature_link: z.string().url().optional(),
 });
 
+// Pour la mise à jour, toutes les propriétés sont optionnelles sauf category_id
 const videoUpdateSchema = videoSchema.partial().extend({
   category_id: z.number()
 });
 
 export async function GET(request: Request) {
-  return withAuth(request, async (supabase) => {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
     const { searchParams } = new URL(request.url);
     const categoryId = searchParams.get("categoryId");
     const videoId = searchParams.get("id");
 
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
     let query = supabase
       .from("category_videos")
-      .select(`*, video_details (*)`);
+      .select(`
+        *,
+        video_details (*)
+      `);
 
     if (videoId) {
       query = query.eq("id", videoId);
@@ -1385,9 +1550,190 @@ export async function GET(request: Request) {
     }
 
     const { data, error } = await query;
+
     if (error) throw error;
+
     return NextResponse.json(data);
-  });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des vidéos:', error);
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const parsedData = videoSchema.parse(body);
+
+    // Commencer une transaction
+    const { data: categoryVideo, error: categoryVideoError } = await supabase
+      .from("category_videos")
+      .insert({
+        category_id: parsedData.category_id,
+        title: parsedData.title,
+        production_status: parsedData.production_status
+      })
+      .select()
+      .single();
+
+    if (categoryVideoError) throw categoryVideoError;
+
+    // Créer les détails de la vidéo
+    const { data: videoDetails, error: videoDetailsError } = await supabase
+      .from("video_details")
+      .insert({
+        category_video_id: categoryVideo.id,
+        title: parsedData.title,
+        instructions_miniature: parsedData.instructions_miniature,
+        rush_link: parsedData.rush_link,
+        video_link: parsedData.video_link,
+        miniature_link: parsedData.miniature_link,
+        production_status: parsedData.production_status
+      })
+      .select()
+      .single();
+
+    if (videoDetailsError) throw videoDetailsError;
+
+    return NextResponse.json({
+      categoryVideo,
+      videoDetails
+    }, { status: 201 });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('Erreur lors de la création de la vidéo:', error);
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+    console.error('Erreur lors de la création de la vidéo:', error);
+    return NextResponse.json(
+      { error: 'Erreur inconnue' },
+      { status: 400 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "ID requis pour la mise à jour" },
+        { status: 400 }
+      );
+    }
+
+    // Vérifier l'authentification
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const parsedData = videoUpdateSchema.parse(body);
+
+    // Mise à jour de category_videos
+    const { error: categoryVideoError } = await supabase
+      .from("category_videos")
+      .update({
+        title: parsedData.title,
+        production_status: parsedData.production_status
+      })
+      .eq("id", id);
+
+    if (categoryVideoError) throw categoryVideoError;
+
+    // Mise à jour de video_details
+    const { data: videoDetails, error: videoDetailsError } = await supabase
+      .from("video_details")
+      .update({
+        title: parsedData.title,
+        instructions_miniature: parsedData.instructions_miniature,
+        rush_link: parsedData.rush_link,
+        video_link: parsedData.video_link,
+        miniature_link: parsedData.miniature_link,
+        production_status: parsedData.production_status
+      })
+      .eq("category_video_id", id)
+      .select();
+
+    if (videoDetailsError) throw videoDetailsError;
+
+    return NextResponse.json(videoDetails);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('Erreur lors de la mise à jour de la vidéo:', error);
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+    console.error('Erreur lors de la mise à jour de la vidéo:', error);
+    return NextResponse.json(
+      { error: 'Erreur inconnue' },
+      { status: 400 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "ID requis pour la suppression" },
+        { status: 400 }
+      );
+    }
+
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const { error } = await supabase
+      .from("category_videos")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Erreur lors de la suppression de la vidéo:', error);
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    );
+  }
 }
 
 
@@ -1403,8 +1749,6 @@ export async function GET(
 ) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
-
-    // Vérifier l'authentification
     const {
       data: { session },
       error: authError,
@@ -1412,26 +1756,18 @@ export async function GET(
     if (authError || !session) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
-
     const { data, error } = await supabase
       .from("category_videos")
-      .select(
-        `
+      .select(`
         *,
         video_details (*)
-      `
-      )
+      `)
       .eq("id", params.videoId)
       .single();
-
     if (error) throw error;
-
     return NextResponse.json(data);
-  } catch (error) {
-    console.error(
-      "Erreur lors de la récupération des détails de la vidéo:",
-      error
-    );
+  } catch (error: unknown) {
+    console.error("Erreur lors de la récupération des détails de la vidéo:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
@@ -1449,24 +1785,87 @@ export async function DELETE(
     if (authError || !session) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
-
-    // Suppression de la vidéo depuis la table "category_videos"
     const { error } = await supabase
       .from("category_videos")
       .delete()
       .eq("id", params.videoId);
-
-    if (error) {
-      throw error;
-    }
-
+    if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Erreur lors de la suppression";
     console.error("Erreur lors de la suppression de la vidéo:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la suppression" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
+}
+
+
+===== route.ts =====
+Chemin : ./src/app/api/videos/[videoId]/comments/route.ts
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { z } from "zod";
+
+const commentSchema = z.object({
+  comment: z.string().min(1, "Le commentaire ne peut être vide"),
+});
+
+export async function GET(
+  request: Request,
+  { params }: { params: { videoId: string } }
+) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const { data: comments, error } = await supabase
+      .from("video_comments")
+      .select("id, comment, created_at, user_id")
+      .eq("video_id", Number(params.videoId))
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return NextResponse.json(comments);
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Erreur serveur";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: { videoId: string } }
+) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const {
+      data: { session },
+      error: authError,
+    } = await supabase.auth.getSession();
+    if (authError || !session) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    }
+    const body = await request.json();
+    const parsed = commentSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.errors }, { status: 400 });
+    }
+    const { comment } = parsed.data;
+    const { data, error } = await supabase
+      .from("video_comments")
+      .insert([
+        {
+          video_id: Number(params.videoId),
+          user_id: session.user.id,
+          comment,
+        },
+      ])
+      .select()
+      .single();
+    if (error) throw error;
+    return NextResponse.json(data, { status: 201 });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Erreur serveur";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -1476,20 +1875,20 @@ Chemin : ./src/app/api/categories/route.ts
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-async function getNextIdentifier(supabase: any) {
+async function getNextIdentifier(supabase: SupabaseClient) {
   const { data: categories } = await supabase
     .from('video_categories')
     .select('identifier')
     .order('identifier', { ascending: true });
 
   if (!categories || categories.length === 0) {
-    return ALPHABET[0]; // Retourne 'A' si aucune catégorie n'existe
+    return ALPHABET[0];
   }
 
-  // Trouve le dernier identifiant utilisé
   const lastIdentifier = categories[categories.length - 1].identifier;
   const lastIndex = ALPHABET.indexOf(lastIdentifier);
 
@@ -1500,12 +1899,10 @@ async function getNextIdentifier(supabase: any) {
   return ALPHABET[lastIndex + 1];
 }
 
-// GET /api/categories
-export async function GET(request: Request): Promise<NextResponse> {
+export async function GET(): Promise<NextResponse> {
   try {
     const supabase = createRouteHandlerClient({ cookies });
 
-    // Vérifier l'authentification
     const { data: { session }, error: authError } = await supabase.auth.getSession();
     if (authError || !session) {
       return NextResponse.json(
@@ -1523,15 +1920,15 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     return NextResponse.json(data);
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Erreur serveur';
     console.error('Erreur lors de la récupération des catégories:', error);
     return NextResponse.json(
-      { error: 'Erreur serveur' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
 }
 
-// POST /api/categories
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const supabase = createRouteHandlerClient({ cookies });
@@ -1561,7 +1958,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       .insert([{ 
         identifier,
         title,
-        user_id: session.user.id // Ajout de l'ID de l'utilisateur
+        user_id: session.user.id
       }])
       .select()
       .single();
@@ -1569,14 +1966,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (error) throw error;
 
     return NextResponse.json(data, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Erreur serveur';
     console.error('Erreur lors de la création de la catégorie:', error);
     return NextResponse.json(
-      { error: error.message },
+      { error: errorMessage },
       { status: 400 }
     );
   }
-} 
+}
+
 
 ===== route.ts =====
 Chemin : ./src/app/api/categories/[id]/route.ts
@@ -1696,6 +2095,201 @@ export async function DELETE(
 } 
 
 ===== route.ts =====
+Chemin : ./src/app/api/alerts/route.ts
+// src/app/api/alerts/route.ts
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+
+export async function GET() {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    // On définit un seuil à 7 jours
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - 7);
+    const isoThreshold = thresholdDate.toISOString();
+
+    const { data: videos, error } = await supabase
+      .from("category_videos")
+      .select("id, title, production_status, updated_at")
+      .neq("production_status", "Terminé")
+      .lt("updated_at", isoThreshold);
+
+    if (error) throw error;
+    return NextResponse.json(videos);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Erreur serveur";
+    console.error("Erreur dans l'API alerts :", error);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
+}
+
+
+===== route.ts =====
+Chemin : ./src/app/api/stats/route.ts
+// src/app/api/stats/route.ts
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+
+// Définition d'une interface pour les vidéos récupérées
+interface Video {
+  production_status: string;
+}
+
+// Interface pour les statistiques calculées
+interface Stats {
+  toDo: number;
+  inProgress: number;
+  readyToPublish: number;
+  finished: number;
+}
+
+export async function GET() {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    
+    // Récupération de la colonne production_status de la table category_videos
+    const { data: videos, error } = await supabase
+      .from("category_videos")
+      .select("production_status");
+      
+    if (error) throw error;
+
+    const videoList: Video[] = videos ?? [];
+
+    // Calcul des compteurs en typant l'accumulateur
+    const stats: Stats = videoList.reduce((acc: Stats, video: Video) => {
+      const status = video.production_status;
+      if (status === "À monter") acc.toDo += 1;
+      else if (status === "En cours") acc.inProgress += 1;
+      else if (status === "Prêt à publier") acc.readyToPublish += 1;
+      else if (status === "Terminé") acc.finished += 1;
+      return acc;
+    }, { toDo: 0, inProgress: 0, readyToPublish: 0, finished: 0 });
+
+    return NextResponse.json(stats);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Erreur serveur";
+    console.error("Erreur dans l'API stats :", error);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
+}
+
+
+===== route.ts =====
+Chemin : ./src/app/api/priorities/route.ts
+// src/app/api/priorities/route.ts
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+
+interface Video {
+  id: number;
+  title: string;
+  production_status: string;
+  updated_at: string;
+}
+
+interface PrioritizedVideo extends Video {
+  priority: number;
+}
+
+export async function GET() {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+
+    // Récupérer toutes les vidéos dont le statut n'est pas "Terminé"
+    const { data: videos, error } = await supabase
+      .from("category_videos")
+      .select("id, title, production_status, updated_at")
+      .neq("production_status", "Terminé");
+
+    if (error) throw error;
+
+    const now = new Date();
+    const videoList: Video[] = videos ?? [];
+
+    const prioritizedVideos: PrioritizedVideo[] = videoList.map((video) => {
+      const updatedAt = new Date(video.updated_at);
+      const diffInMs = now.getTime() - updatedAt.getTime();
+      const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
+      return {
+        ...video,
+        priority: Math.round(diffInDays),
+      };
+    });
+
+    prioritizedVideos.sort((a, b) => b.priority - a.priority);
+
+    return NextResponse.json(prioritizedVideos);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Erreur serveur';
+    console.error("Erreur dans l'API priorités :", error);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
+}
+
+
+===== route.ts =====
+Chemin : ./src/app/api/performance/route.ts
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
+interface Video {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  production_status: string;
+}
+
+export async function GET() {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+
+    const { data: videos, error } = await supabase
+      .from("category_videos")
+      .select("id, created_at, updated_at, production_status")
+      .eq("production_status", "Terminé");
+
+    if (error) throw error;
+
+    const videoList: Video[] = videos ?? [];
+
+    let totalDays = 0;
+    let count = 0;
+    const monthlyCounts: Record<string, number> = {};
+
+    videoList.forEach((video) => {
+      const created = new Date(video.created_at);
+      const updated = new Date(video.updated_at);
+      const diffInDays =
+        (updated.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
+      totalDays += diffInDays;
+      count++;
+
+      const month = updated.toISOString().slice(0, 7);
+      monthlyCounts[month] = (monthlyCounts[month] || 0) + 1;
+    });
+
+    const avgProductionTime = count > 0 ? totalDays / count : 0;
+
+    return NextResponse.json({
+      avgProductionTime: avgProductionTime.toFixed(2),
+      monthlyCounts,
+      totalVideos: count,
+    });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Erreur serveur";
+    console.error("Erreur dans l'API performance :", error);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
+}
+
+
+===== route.ts =====
 Chemin : ./src/app/api/auth/[...nextauth]/route.ts
 // ./src/app/api/auth/[...nextauth]/route.ts
 import NextAuth from "next-auth";
@@ -1708,39 +2302,57 @@ const handler = NextAuth({
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "text", placeholder: "john.doe@example.com" },
-        password: { label: "Password", type: "password" }
+        email: {
+          label: "Email",
+          type: "text",
+          placeholder: "john.doe@example.com",
+        },
+        password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          console.error("❌ Erreur: Email et mot de passe requis !");
           throw new Error("Email et mot de passe requis");
         }
 
         const { data, error } = await supabase.auth.signInWithPassword({
           email: credentials.email,
-          password: credentials.password
+          password: credentials.password,
         });
 
         if (error || !data.user) {
-          console.error(`❌ Erreur de connexion: ${error?.message}`);
           throw new Error("Identifiants invalides");
         }
 
-        console.log(`✅ Utilisateur connecté: ${data.user.email}`);
+        let role = "user"; // rôle par défaut
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", data.user.id)
+            .single();
+          if (!profileError && profileData?.role) {
+            role = profileData.role;
+          }
+          console.log("[Authorize] Rôle récupéré :", role);
+        } catch (e) {
+          console.error("Impossible de récupérer le rôle:", e);
+        }
 
-        return { ...data.user };
-      }
-    })
+        return { ...data.user, role };
+      },
+    }),
   ],
   session: {
-    strategy: "jwt"
+    strategy: "jwt",
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.email = user.email ?? undefined;
+        token.role = user.role ?? "user"; // Forcer une valeur par défaut si non défini
+        console.log("[JWT] User:", user);
+        console.log("[JWT] Token après ajout role:", token);
       }
       return token;
     },
@@ -1748,13 +2360,16 @@ const handler = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
+        session.user.role = token.role ?? "user"; // Assurez-vous que role est toujours présent
+        console.log("[Session] Session utilisateur:", session.user);
       }
       return session;
-    }
+    },
   },
+
   pages: {
-    signIn: "/login"
-  }
+    signIn: "/login",
+  },
 });
 
 export { handler as GET, handler as POST };
@@ -1766,7 +2381,8 @@ Chemin : ./src/app/login/page.tsx
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { signIn } from "next-auth/react";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -1774,7 +2390,6 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const supabase = createClientComponentClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1782,22 +2397,27 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const result = await signIn("credentials", {
         email,
         password,
+        redirect: false, // nous gérons la redirection nous-mêmes
       });
 
-      if (error) {
-        setErrorMsg(error.message);
-        return;
-      }
+      console.log("Résultat de signIn:", result);
 
-      if (data?.session) {
+      if (result?.error) {
+        toast.error(result.error);
+        setErrorMsg(result.error);
+      } else if (result?.ok) {
         router.push("/dashboard");
-        router.refresh(); // Force le rafraîchissement pour mettre à jour la session
+      } else {
+        // Cas non prévu
+        toast.error("Connexion échouée");
+        setErrorMsg("Connexion échouée");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erreur de connexion:", error);
+      toast.error("Une erreur est survenue lors de la connexion");
       setErrorMsg("Une erreur est survenue lors de la connexion");
     } finally {
       setIsLoading(false);
@@ -1806,6 +2426,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#212121] text-[#ECECEC]">
+      <Toaster />
       <form
         onSubmit={handleSubmit}
         className="w-96 p-8 bg-[#171717] rounded-lg shadow-xl border border-[#424242]"
@@ -1821,7 +2442,7 @@ export default function LoginPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC] transition-colors duration-200"
+            className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC]"
             required
             disabled={isLoading}
           />
@@ -1835,7 +2456,7 @@ export default function LoginPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC] transition-colors duration-200"
+            className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC]"
             required
             disabled={isLoading}
           />
@@ -1843,7 +2464,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-[#424242] hover:bg-[#171717] text-[#ECECEC] py-3 px-4 rounded-lg transition-colors duration-200 border border-[#424242] disabled:opacity-50"
+          className="w-full bg-[#424242] hover:bg-[#171717] text-[#ECECEC] py-3 px-4 rounded-lg border border-[#424242] disabled:opacity-50"
         >
           {isLoading ? "Connexion en cours..." : "Se connecter"}
         </button>
@@ -1872,6 +2493,13 @@ interface CategoryWithCounts {
   finished_count: number;
 }
 
+interface VideoCategory {
+  id: number;
+  identifier: string;
+  title: string;
+  category_videos: { production_status: string }[] | null;
+}
+
 export default function DashboardPage() {
   const [categories, setCategories] = useState<CategoryWithCounts[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -1883,11 +2511,11 @@ export default function DashboardPage() {
   const fetchCategories = useCallback(async () => {
     setIsLoading(true);
     try {
-      // 1. Récupérer catégories + vidéos (avec production_status)
+      // Récupérer les catégories et leurs vidéos associées
       const { data, error } = await supabase
         .from("video_categories")
         .select(`
-          id,
+          id, 
           identifier,
           title,
           category_videos (
@@ -1898,13 +2526,16 @@ export default function DashboardPage() {
 
       if (error) throw error;
 
-      // 2. Calculer les compteurs
-      const mapped = (data || []).map((cat) => {
+      // On s'assure que data est un tableau de VideoCategory
+      const dataCategories = (data || []) as VideoCategory[];
+
+      // Calculer les compteurs par statut
+      const mapped = dataCategories.map((cat) => {
         let pending_count = 0;
         let ready_to_publish_count = 0;
         let finished_count = 0;
 
-        cat.category_videos?.forEach((video: { production_status: string }) => {
+        cat.category_videos?.forEach((video) => {
           if (video.production_status === "En cours") {
             pending_count++;
           } else if (video.production_status === "Prêt à publier") {
@@ -1945,54 +2576,61 @@ export default function DashboardPage() {
         </h1>
       </header>
 
-      {error && (
-        <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg mb-6">
-          {error}
+      {isLoading ? (
+        <div className="text-center py-6">
+          Chargement en cours...
         </div>
+      ) : (
+        <>
+          {error && (
+            <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg mb-6">
+              {error}
+            </div>
+          )}
+
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Carte pour ajouter une nouvelle catégorie */}
+            <div
+              onClick={() => setIsCreateModalOpen(true)}
+              className="bg-[#171717] p-5 md:p-6 rounded-lg border border-dashed border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer flex flex-col items-center justify-center hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 md:w-12 md:h-12 bg-[#424242] rounded-full flex items-center justify-center mb-3">
+                +
+              </div>
+              <p className="text-center text-gray-400 text-sm md:text-base">
+                Créer une nouvelle catégorie
+              </p>
+            </div>
+
+            {/* Liste des catégories existantes */}
+            {categories.map((category, index) => (
+              <div
+                key={category.id}
+                onClick={() => router.push(`/dashboard/categories/${category.id}`)}
+                className="bg-[#171717] p-5 md:p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <div className="flex items-center mb-3">
+                  <span className="text-lg md:text-xl font-medium text-[#424242]">
+                    {category.identifier}
+                  </span>
+                  <span className="mx-2 text-lg md:text-xl font-medium text-[#424242]">
+                    |
+                  </span>
+                  <h3 className="text-lg md:text-xl font-medium truncate">
+                    {category.title}
+                  </h3>
+                </div>
+                <div className="flex flex-col text-xs md:text-sm text-gray-400 gap-1">
+                  <span>{category.pending_count} en cours</span>
+                  <span>{category.ready_to_publish_count} prêtes</span>
+                  <span>{category.finished_count} terminées</span>
+                </div>
+              </div>
+            ))}
+          </section>
+        </>
       )}
-
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Carte pour ajouter une nouvelle catégorie */}
-        <div
-          onClick={() => setIsCreateModalOpen(true)}
-          className="bg-[#171717] p-5 md:p-6 rounded-lg border border-dashed border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer flex flex-col items-center justify-center hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
-        >
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-[#424242] rounded-full flex items-center justify-center mb-3">
-            +
-          </div>
-          <p className="text-center text-gray-400 text-sm md:text-base">
-            Créer une nouvelle catégorie
-          </p>
-        </div>
-
-        {/* Liste des catégories existantes */}
-        {categories.map((category, index) => (
-          <div
-            key={category.id}
-            onClick={() => router.push(`/dashboard/categories/${category.id}`)}
-            className="bg-[#171717] p-5 md:p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
-            style={{ animationDelay: `${index * 50}ms` }}
-          >
-            {/* Contenu de la carte */}
-            <div className="flex items-center mb-3">
-              <span className="text-lg md:text-xl font-medium text-[#424242]">
-                {category.identifier}
-              </span>
-              <span className="mx-2 text-lg md:text-xl font-medium text-[#424242]">
-                |
-              </span>
-              <h3 className="text-lg md:text-xl font-medium truncate">
-                {category.title}
-              </h3>
-            </div>
-            <div className="flex flex-col text-xs md:text-sm text-gray-400 gap-1">
-              <span>{category.pending_count} en cours</span>
-              <span>{category.ready_to_publish_count} prêtes</span>
-              <span>{category.finished_count} terminées</span>
-            </div>
-          </div>
-        ))}
-      </section>
 
       <CreateCategoryModal
         isOpen={isCreateModalOpen}
@@ -2005,10 +2643,55 @@ export default function DashboardPage() {
 
 
 ===== page.tsx =====
+Chemin : ./src/app/dashboard/admin/page.tsx
+"use client";
+
+import { useEffect } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
+import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
+
+export default function AdminPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status !== "loading" && session?.user?.role !== "admin") {
+      // Redirige vers le dashboard si l'utilisateur n'est pas admin
+      router.push("/dashboard");
+    }
+  }, [session, status, router]);
+
+  if (status === "loading") {
+    return <div>Chargement...</div>;
+  }
+
+  return (
+    <DashboardLayout>
+      <header className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-semibold">Administration</h1>
+      </header>
+      <div className="p-4 bg-[#171717] rounded-lg">
+        <p className="text-lg">
+          Bienvenue dans l&apos;espace administration. Vous pouvez gérer les utilisateurs et effectuer des actions sensibles ici.
+        </p>
+        <button
+          onClick={() => signOut()}
+          className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg"
+        >
+          Déconnexion
+        </button>
+      </div>
+    </DashboardLayout>
+  );
+}
+
+
+===== page.tsx =====
 Chemin : ./src/app/dashboard/videos/[id]/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
@@ -2020,7 +2703,7 @@ import {
   updateStatus,
 } from "../../../../services/videoService";
 import { Video, VIDEO_STATUS } from "../../../../types/video";
-import { STATUS_STEPS } from "../../../../constants/videoConstants";
+// L'import de STATUS_STEPS a été supprimé car il n'est pas utilisé.
 import EditableItem from "../../../../components/EditableItem";
 import { StatusProgress } from "../../../../components/StatusProgress";
 import { ArrowLeft, Trash2 } from "react-feather";
@@ -2058,12 +2741,22 @@ const ErrorState = ({ error, onBack }: ErrorStateProps) => (
   </div>
 );
 
+interface Comment {
+  id: number;
+  comment: string;
+  created_at: string;
+}
+
 export default function VideoPage({ params }: { params: { id: string } }) {
   const [video, setVideo] = useState<Video | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isStatusChanging, setIsStatusChanging] = useState<boolean>(false);
   const router = useRouter();
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [loadingComments, setLoadingComments] = useState(true);
+  const [errorComments, setErrorComments] = useState("");
 
   // État pour la suppression
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -2075,9 +2768,13 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       try {
         const data = await fetchVideoDetails(params.id);
         setVideo(data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Erreur lors du chargement de la vidéo :", err);
-        setError("Impossible de charger les détails de la vidéo");
+        if (err instanceof Error) {
+          setError("Impossible de charger les détails de la vidéo");
+        } else {
+          setError("Erreur inconnue lors du chargement de la vidéo");
+        }
       } finally {
         setIsLoading(false);
       }
@@ -2092,9 +2789,13 @@ export default function VideoPage({ params }: { params: { id: string } }) {
     try {
       await updateTitle(params.id, trimmed);
       setVideo((prev) => (prev ? { ...prev, title: trimmed } : null));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour du titre :", err);
-      setError("Impossible de mettre à jour le titre");
+      if (err instanceof Error) {
+        setError("Impossible de mettre à jour le titre");
+      } else {
+        setError("Erreur inconnue lors de la mise à jour du titre");
+      }
     }
   };
 
@@ -2105,9 +2806,13 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       setVideo((prev) =>
         prev ? { ...prev, description: newDescription } : null
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour de la description :", err);
-      setError("Impossible de mettre à jour la description");
+      if (err instanceof Error) {
+        setError("Impossible de mettre à jour la description");
+      } else {
+        setError("Erreur inconnue lors de la mise à jour de la description");
+      }
     }
   };
 
@@ -2118,9 +2823,13 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       setVideo((prev) =>
         prev ? { ...prev, instructions_miniature: newInstructions } : null
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour des instructions :", err);
-      setError("Impossible de mettre à jour les instructions");
+      if (err instanceof Error) {
+        setError("Impossible de mettre à jour les instructions");
+      } else {
+        setError("Erreur inconnue lors de la mise à jour des instructions");
+      }
     }
   };
 
@@ -2132,13 +2841,17 @@ export default function VideoPage({ params }: { params: { id: string } }) {
     try {
       await updateLink(params.id, dbField, newValue);
       setVideo((prev) => (prev ? { ...prev, [dbField]: newValue } : null));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(`Erreur lors de la mise à jour du lien ${dbField} :`, err);
-      setError(`Impossible de mettre à jour le lien ${dbField}`);
+      if (err instanceof Error) {
+        setError(`Impossible de mettre à jour le lien ${dbField}`);
+      } else {
+        setError("Erreur inconnue lors de la mise à jour du lien");
+      }
     }
   };
 
-  // Mise à jour du statut sans restriction de saut, avec toast en cas d'erreur
+  // Mise à jour du statut avec gestion de toast en cas d'erreur
   const handleStatusUpdate = async (
     newStatus: (typeof VIDEO_STATUS)[keyof typeof VIDEO_STATUS]
   ) => {
@@ -2149,7 +2862,7 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       setVideo((prev) =>
         prev ? { ...prev, production_status: newStatus } : null
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour du statut :", err);
       toast.error(
         err instanceof Error
@@ -2174,12 +2887,64 @@ export default function VideoPage({ params }: { params: { id: string } }) {
         throw new Error(errorData.error || "Échec de la suppression");
       }
       router.push("/dashboard");
-    } catch (error: any) {
-      console.error("Erreur lors de la suppression de la vidéo :", error);
-      setDeleteError(error.message);
+    } catch (err: unknown) {
+      console.error("Erreur lors de la suppression de la vidéo :", err);
+      if (err instanceof Error) {
+        setDeleteError(err.message);
+      } else {
+        setDeleteError("Erreur inconnue lors de la suppression");
+      }
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
+    }
+  };
+
+  const fetchComments = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/videos/${params.id}/comments`);
+      if (!response.ok) {
+        throw new Error("Erreur lors de la récupération des commentaires");
+      }
+      const data = (await response.json()) as Comment[];
+      setComments(data);
+    } catch (err: unknown) {
+      console.error("Erreur lors du chargement des commentaires", err);
+      if (err instanceof Error) {
+        setErrorComments("Impossible de charger les commentaires");
+      } else {
+        setErrorComments("Erreur inconnue lors du chargement des commentaires");
+      }
+    } finally {
+      setLoadingComments(false);
+    }
+  }, [params.id]);
+
+  useEffect(() => {
+    if (video) {
+      fetchComments();
+    }
+  }, [video, fetchComments]);
+
+  // Fonction pour poster un commentaire
+  const postComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    try {
+      const response = await fetch(`/api/videos/${params.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment: newComment }),
+      });
+      if (!response.ok) {
+        throw new Error("Erreur lors de l'envoi du commentaire");
+      }
+      // Rafraîchir la liste des commentaires
+      setNewComment("");
+      fetchComments();
+    } catch (err: unknown) {
+      console.error("Erreur lors de l'ajout du commentaire", err);
+      alert("Impossible d'ajouter le commentaire");
     }
   };
 
@@ -2213,7 +2978,7 @@ export default function VideoPage({ params }: { params: { id: string } }) {
           </button>
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mt-4">
             <h1 className="text-2xl md:text-3xl font-semibold flex flex-wrap items-center gap-3">
-              <span className="text-gray-500">#{video.id}</span>
+              <span>{video.fullIdentifier}</span>
               <EditableItem
                 label=""
                 value={video.title}
@@ -2226,22 +2991,20 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               <span
                 className={`px-3 py-1 rounded-full text-sm font-semibold transition-opacity duration-200 ${
                   isStatusChanging ? "opacity-50" : "opacity-100"
-                } ${
-                  (() => {
-                    switch (video.production_status) {
-                      case VIDEO_STATUS.TO_DO:
-                        return "bg-yellow-600";
-                      case VIDEO_STATUS.IN_PROGRESS:
-                        return "bg-blue-600";
-                      case VIDEO_STATUS.READY_TO_PUBLISH:
-                        return "bg-green-600";
-                      case VIDEO_STATUS.FINISHED:
-                        return "bg-purple-600";
-                      default:
-                        return "bg-gray-600";
-                    }
-                  })()
-                }`}
+                } ${(() => {
+                  switch (video.production_status) {
+                    case VIDEO_STATUS.TO_DO:
+                      return "bg-yellow-600";
+                    case VIDEO_STATUS.IN_PROGRESS:
+                      return "bg-blue-600";
+                    case VIDEO_STATUS.READY_TO_PUBLISH:
+                      return "bg-green-600";
+                    case VIDEO_STATUS.FINISHED:
+                      return "bg-purple-600";
+                    default:
+                      return "bg-gray-600";
+                  }
+                })()}`}
               >
                 {(() => {
                   switch (video.production_status) {
@@ -2295,14 +3058,16 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               label="Rush brut"
               value={video.rush_link || ""}
               placeholder="Ajouter le lien des rushes"
-              onSave={(newVal) => handleLinkUpdate(newVal, "rush_link")}
+              onSave={(newVal: string) => handleLinkUpdate(newVal, "rush_link")}
               isLink={true}
             />
             <EditableItem
               label="Montage final"
               value={video.video_link || ""}
               placeholder="Ajouter le lien de la vidéo montée"
-              onSave={(newVal) => handleLinkUpdate(newVal, "video_link")}
+              onSave={(newVal: string) =>
+                handleLinkUpdate(newVal, "video_link")
+              }
               isLink={true}
             />
           </Section>
@@ -2319,7 +3084,9 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               label="Fichier miniature"
               value={video.miniature_link || ""}
               placeholder="Ajouter le lien de la miniature"
-              onSave={(newVal) => handleLinkUpdate(newVal, "miniature_link")}
+              onSave={(newVal: string) =>
+                handleLinkUpdate(newVal, "miniature_link")
+              }
               isLink={true}
             />
           </Section>
@@ -2344,6 +3111,49 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               </div>
             </div>
           </Section>
+
+          <section className="bg-[#171717] p-4 md:p-6 rounded-lg border border-gray-700 shadow-sm mt-6">
+            <h2 className="text-lg md:text-xl font-medium mb-4">
+              Commentaires internes
+            </h2>
+
+            {/* Formulaire pour ajouter un commentaire */}
+            <form onSubmit={postComment} className="mb-4">
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Ajouter un commentaire..."
+                className="w-full p-2 bg-[#212121] border border-[#424242] rounded-lg text-[#ECECEC] focus:outline-none"
+                rows={3}
+              />
+              <button
+                type="submit"
+                className="mt-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200"
+              >
+                Ajouter
+              </button>
+            </form>
+
+            {/* Liste des commentaires */}
+            {loadingComments ? (
+              <div>Chargement des commentaires...</div>
+            ) : errorComments ? (
+              <div className="text-red-500">{errorComments}</div>
+            ) : comments.length === 0 ? (
+              <div>Aucun commentaire pour le moment.</div>
+            ) : (
+              <ul className="space-y-3">
+                {comments.map((c: Comment) => (
+                  <li key={c.id} className="p-3 bg-[#212121] rounded-lg">
+                    <p className="text-sm">{c.comment}</p>
+                    <span className="text-xs text-gray-400">
+                      {new Date(c.created_at).toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           {deleteError && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500 text-red-500 rounded">
@@ -2430,14 +3240,15 @@ import CreateVideoModal from "@/components/CreateVideoModal";
 interface Video {
   id: number;
   title: string;
-  production_status: string; // Par ex. "À monter", "En cours", "Prêt à publier", "Terminé"
+  production_status: string; // Ex. "À monter", "En cours", "Prêt à publier", "Terminé"
   created_at: string;
   updated_at: string;
+  identifier: number; // Identifiant numérique de la vidéo
 }
 
 interface Category {
   id: number;
-  identifier: string;
+  identifier: string; // Par ex. "A"
   title: string;
   videos: Video[];
 }
@@ -2475,10 +3286,10 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
         .single();
       if (categoryError) throw categoryError;
 
-      // 2. Récupérer les vidéos, en sélectionnant la colonne production_status
+      // 2. Récupérer les vidéos associées à la catégorie
       const { data: videosData, error: videosError } = await supabase
         .from("category_videos")
-        .select("id, title, production_status, created_at, updated_at")
+        .select("id, identifier, title, production_status, created_at, updated_at")
         .eq("category_id", params.id)
         .order("id", { ascending: true });
       if (videosError) throw videosError;
@@ -2502,7 +3313,6 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
         .from("video_categories")
         .update({ title: newTitle })
         .eq("id", params.id);
-
       if (error) throw error;
 
       setCategory((prev) => (prev ? { ...prev, title: newTitle } : null));
@@ -2549,9 +3359,6 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
   };
 
   const getStatusText = (status: string) => {
-    // Si vous stockez directement "Terminé", "En cours", etc. dans la BDD,
-    // vous pouvez simplement return status.
-    // Ou personnaliser si nécessaire :
     return status;
   };
 
@@ -2593,7 +3400,6 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
             >
               <ArrowLeft size={16} /> Retour
             </button>
-
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-black/20 text-red-500 rounded-md transition-colors duration-200 text-sm"
@@ -2603,11 +3409,8 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
               {isDeleting ? "Suppression..." : "Supprimer"}
             </button>
           </div>
-
           <h1 className="text-2xl md:text-3xl font-semibold flex items-center gap-2 md:gap-4 flex-wrap w-full">
-            <span className="text-[#424242] break-all">
-              {category.identifier}
-            </span>
+            <span className="break-all">{category.identifier}</span>
             {editingTitle ? (
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                 <input
@@ -2650,7 +3453,7 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
               </h2>
               <p className="mb-6 text-gray-700 dark:text-gray-300">
                 Êtes-vous sûr de vouloir supprimer la catégorie{" "}
-                <strong>{category.title}</strong> ?
+                <strong>{category.title}</strong> ?{" "}
                 {category.videos.length > 0 && (
                   <span className="block mt-2 text-red-500 dark:text-red-400">
                     Cette catégorie contient {category.videos.length} vidéo
@@ -2728,32 +3531,37 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
           </div>
 
           {/* Cartes des vidéos existantes */}
-          {category.videos.map((video) => (
-            <div
-              key={video.id}
-              onClick={() => router.push(`/dashboard/videos/${video.id}`)}
-              className="relative bg-[#171717] p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer"
-            >
-              {/* Badge du statut en haut à droite */}
-              <div className="absolute top-2 right-2">
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-semibold text-white ${getStatusColor(
-                    video.production_status
-                  )}`}
-                >
-                  {getStatusText(video.production_status)}
-                </span>
-              </div>
-
-              <div className="flex flex-col h-full">
-                <h3 className="text-xl font-medium mb-2">{video.title}</h3>
-                <div className="mt-auto text-sm text-gray-400">
-                  Dernière mise à jour :{" "}
-                  {new Date(video.updated_at).toLocaleDateString()}
+          {category.videos.map((video) => {
+            // Construire l'identifiant complet : ex. "A-2"
+            const fullIdentifier = `${category.identifier}-${video.identifier}`;
+            return (
+              <div
+                key={video.id}
+                onClick={() => router.push(`/dashboard/videos/${video.id}`)}
+                className="relative bg-[#171717] p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer"
+              >
+                {/* Badge du statut */}
+                <div className="absolute top-2 right-2">
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-semibold text-white ${getStatusColor(
+                      video.production_status
+                    )}`}
+                  >
+                    {getStatusText(video.production_status)}
+                  </span>
+                </div>
+                <div className="flex flex-col h-full">
+                  <h3 className="text-xl font-medium mb-2">
+                    {fullIdentifier} {video.title}
+                  </h3>
+                  <div className="mt-auto text-sm text-gray-400">
+                    Dernière mise à jour :{" "}
+                    {new Date(video.updated_at).toLocaleDateString()}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {category.videos.length === 0 && (
             <div className="col-span-full text-center py-12 text-gray-400">
@@ -2768,10 +3576,341 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
           onClose={() => setIsCreateModalOpen(false)}
           onSuccess={fetchCategoryDetails}
           categoryId={params.id}
-          categoryTitle={category.title}
+          categoryIdentifier={category.identifier} // Pour générer l'identifiant complet, ex. "A-1"
+          categoryTitle={category.title} // Pour afficher le nom complet de la catégorie
         />
       </div>
     </div>
+  );
+}
+
+
+===== page.tsx =====
+Chemin : ./src/app/dashboard/alerts/page.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
+
+interface Alert {
+  id: number;
+  title: string;
+  production_status: string;
+  updated_at: string;
+}
+
+export default function AlertsPage() {
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchAlerts = async () => {
+      try {
+        const response = await fetch("/api/alerts");
+        if (!response.ok) {
+          throw new Error("Erreur lors de la récupération des alertes");
+        }
+        const data = (await response.json()) as Alert[];
+        setAlerts(data);
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          console.error("Erreur lors du chargement des alertes", err);
+        } else {
+          console.error("Erreur lors du chargement des alertes", err);
+        }
+        setError("Impossible de charger les alertes");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAlerts();
+  }, []);
+
+  return (
+    <DashboardLayout>
+      <header className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-semibold">Alertes et Rappels</h1>
+      </header>
+      {isLoading ? (
+        <div>Chargement...</div>
+      ) : error ? (
+        <div className="text-red-500">{error}</div>
+      ) : alerts.length === 0 ? (
+        <div>Aucune alerte pour le moment.</div>
+      ) : (
+        <div className="space-y-4">
+          {alerts.map((alert) => (
+            <div key={alert.id} className="p-4 bg-[#171717] rounded-lg">
+              <h2 className="text-xl font-bold">{alert.title}</h2>
+              <p>Statut : {alert.production_status}</p>
+              <p>
+                Dernière mise à jour :{" "}
+                {new Date(alert.updated_at).toLocaleDateString()}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </DashboardLayout>
+  );
+}
+
+
+===== page.tsx =====
+Chemin : ./src/app/dashboard/stats/page.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
+
+interface Stats {
+  toDo: number;
+  inProgress: number;
+  readyToPublish: number;
+  finished: number;
+}
+
+export default function StatsPage() {
+  const [stats, setStats] = useState<Stats>({
+    toDo: 0,
+    inProgress: 0,
+    readyToPublish: 0,
+    finished: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch("/api/stats");
+        if (!response.ok) {
+          throw new Error("Erreur lors de la récupération des statistiques");
+        }
+        const data = (await response.json()) as Stats;
+        setStats(data);
+      } catch (err: unknown) {
+        console.error("Erreur lors du chargement des statistiques", err);
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("Impossible de charger les statistiques");
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  return (
+    <DashboardLayout>
+      <header className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-semibold">
+          Vue d&apos;ensemble de la production
+        </h1>
+      </header>
+
+      {isLoading ? (
+        <div>Chargement...</div>
+      ) : error ? (
+        <div className="text-red-500">{error}</div>
+      ) : (
+        <div className="grid gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 bg-[#171717] rounded-lg text-center">
+              <p className="text-3xl font-bold">{stats.toDo}</p>
+              <p>À monter</p>
+            </div>
+            <div className="p-4 bg-[#171717] rounded-lg text-center">
+              <p className="text-3xl font-bold">{stats.inProgress}</p>
+              <p>En cours</p>
+            </div>
+            <div className="p-4 bg-[#171717] rounded-lg text-center">
+              <p className="text-3xl font-bold">{stats.readyToPublish}</p>
+              <p>Prêt à publier</p>
+            </div>
+            <div className="p-4 bg-[#171717] rounded-lg text-center">
+              <p className="text-3xl font-bold">{stats.finished}</p>
+              <p>Terminé</p>
+            </div>
+          </div>
+          {/* Vous pouvez ajouter ici d'autres visualisations (graphique, etc.) */}
+        </div>
+      )}
+    </DashboardLayout>
+  );
+}
+
+
+===== page.tsx =====
+Chemin : ./src/app/dashboard/priorities/page.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
+import { useRouter } from "next/navigation";
+
+interface VideoPriority {
+  id: number;
+  title: string;
+  production_status: string;
+  updated_at: string;
+  priority: number;
+}
+
+export default function PrioritiesPage() {
+  const [videos, setVideos] = useState<VideoPriority[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const router = useRouter();
+
+  useEffect(() => {
+    const fetchPriorities = async () => {
+      try {
+        const response = await fetch("/api/priorities");
+        if (!response.ok) {
+          throw new Error("Erreur lors de la récupération des priorités");
+        }
+        const data = (await response.json()) as VideoPriority[];
+        setVideos(data);
+      } catch (err: unknown) {
+        console.error("Erreur lors du chargement des priorités", err);
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("Impossible de charger les priorités");
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPriorities();
+  }, []);
+
+  return (
+    <DashboardLayout>
+      <header className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-semibold">Priorisation et planification</h1>
+      </header>
+
+      {isLoading ? (
+        <div>Chargement...</div>
+      ) : error ? (
+        <div className="text-red-500">{error}</div>
+      ) : videos.length === 0 ? (
+        <div>Aucune vidéo prioritaire à afficher.</div>
+      ) : (
+        <div className="space-y-4">
+          {videos.map((video) => (
+            <div
+              key={video.id}
+              className="p-4 bg-[#171717] rounded-lg cursor-pointer hover:bg-[#212121] transition-colors"
+              onClick={() => router.push(`/dashboard/videos/${video.id}`)}
+            >
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">{video.title}</h2>
+                <span className="px-3 py-1 rounded-full bg-red-600 text-white text-sm">
+                  Priorité: {video.priority}
+                </span>
+              </div>
+              <p>Statut: {video.production_status}</p>
+              <p>
+                Dernière mise à jour: {new Date(video.updated_at).toLocaleDateString()}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </DashboardLayout>
+  );
+}
+
+
+===== page.tsx =====
+Chemin : ./src/app/dashboard/performance/page.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
+
+interface PerformanceStats {
+  avgProductionTime: string;
+  monthlyCounts: Record<string, number>;
+  totalVideos: number;
+}
+
+export default function PerformancePage() {
+  const [stats, setStats] = useState<PerformanceStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchPerformance = async () => {
+      try {
+        const response = await fetch("/api/performance");
+        if (!response.ok) {
+          throw new Error("Erreur lors de la récupération des statistiques de performance");
+        }
+        const data = (await response.json()) as PerformanceStats;
+        setStats(data);
+      } catch (err: unknown) {
+        console.error("Erreur lors du chargement des statistiques de performance", err);
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("Une erreur inconnue est survenue");
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPerformance();
+  }, []);
+
+  return (
+    <DashboardLayout>
+      <header className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-semibold">
+          Suivi de performance et Reporting
+        </h1>
+      </header>
+
+      {isLoading ? (
+        <div>Chargement...</div>
+      ) : error ? (
+        <div className="text-red-500">{error}</div>
+      ) : stats ? (
+        <div className="space-y-6">
+          {/* Temps moyen de production */}
+          <div className="p-4 bg-[#171717] rounded-lg">
+            <h2 className="text-xl font-bold">Temps moyen de production</h2>
+            <p className="text-3xl">{stats.avgProductionTime} jours</p>
+          </div>
+          {/* Vidéos terminées par mois */}
+          <div className="p-4 bg-[#171717] rounded-lg">
+            <h2 className="text-xl font-bold">Vidéos terminées par mois</h2>
+            <ul>
+              {Object.entries(stats.monthlyCounts).map(([month, count]) => (
+                <li key={month}>
+                  {month}: {count} vidéo{count > 1 ? "s" : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+          {/* Total des vidéos terminées */}
+          <div className="p-4 bg-[#171717] rounded-lg">
+            <h2 className="text-xl font-bold">Total des vidéos terminées</h2>
+            <p className="text-3xl">{stats.totalVideos}</p>
+          </div>
+        </div>
+      ) : null}
+    </DashboardLayout>
   );
 }
 
@@ -2793,6 +3932,8 @@ export interface Video {
   video_link: string;
   miniature_link: string;
   production_status: Status;
+  identifier?: number;
+  fullIdentifier?: string;
 }
 
 export const VIDEO_STATUS = {

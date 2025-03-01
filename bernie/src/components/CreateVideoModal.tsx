@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 interface CreateVideoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  categoryId: string;
-  categoryIdentifier: string; // Exemple : "A"
+  categoryId: string; // ID numérique de la catégorie
+  categoryIdentifier: string; // Par ex. "A"
+  categoryTitle: string; // Par ex. "Vidéo Grattage/Casino"
 }
 
 export default function CreateVideoModal({
@@ -17,40 +18,58 @@ export default function CreateVideoModal({
   onSuccess,
   categoryId,
   categoryIdentifier,
+  categoryTitle,
 }: CreateVideoModalProps) {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [title, setTitle] = useState("");
+
+  // Identifiant numérique de la vidéo (ex. 1, 2, 3...)
+  const [videoIdentifier, setVideoIdentifier] = useState<number>(0);
+
+  // Titre de la vidéo
+  const [videoTitle, setVideoTitle] = useState("");
+
   const supabase = createClientComponentClient();
 
-  // Statut de production par défaut (à adapter si besoin)
-  const defaultProductionStatus = "À monter";
+  const fetchNextVideoIdentifier = useCallback(async () => {
+    try {
+      setError("");
 
-  // Au moment d'ouverture du modal, on récupère le nombre de vidéos existantes
-  // pour générer le titre par défaut.
+      // Récupérer le plus grand "identifier" existant dans la catégorie
+      const { data, error } = await supabase
+        .from("category_videos")
+        .select("identifier")
+        .eq("category_id", Number(categoryId))
+        .order("identifier", { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      // S'il n'y a aucune vidéo, on part de 0
+      const lastIdentifier = data && data.length > 0 ? data[0].identifier : 0;
+      const nextIdentifier = lastIdentifier + 1;
+      setVideoIdentifier(nextIdentifier);
+    } catch (err: unknown) {
+      console.error(
+        "Erreur lors de la récupération de l'identifiant vidéo:",
+        err
+      );
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError(
+          "Erreur inconnue lors de la récupération de l'identifiant vidéo"
+        );
+      }
+    }
+  }, [supabase, categoryId]);
+
   useEffect(() => {
     if (isOpen) {
-      const fetchCountAndSetTitle = async () => {
-        try {
-          const { count, error: countError } = await supabase
-            .from("category_videos")
-            .select("*", { count: "exact", head: true })
-            .eq("category_id", Number(categoryId));
-
-          if (countError) throw countError;
-
-          const videoNumber = (count || 0) + 1;
-          const generatedTitle = `${categoryIdentifier}-${videoNumber}`;
-          setTitle(generatedTitle);
-        } catch (err: any) {
-          console.error("Erreur lors du comptage des vidéos:", err);
-          setError(err.message);
-        }
-      };
-
-      fetchCountAndSetTitle();
+      fetchNextVideoIdentifier();
+      setVideoTitle(""); // reset du champ titre
     }
-  }, [isOpen, categoryId, categoryIdentifier, supabase]);
+  }, [isOpen, fetchNextVideoIdentifier]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,46 +77,54 @@ export default function CreateVideoModal({
     setIsLoading(true);
 
     try {
-      const finalTitle = title.trim();
-      if (!finalTitle) {
-        throw new Error("Le titre ne peut être vide");
+      if (!videoTitle.trim()) {
+        throw new Error("Le titre de la vidéo ne peut être vide.");
+      }
+      if (videoIdentifier <= 0) {
+        throw new Error("L'identifiant de la vidéo est invalide.");
       }
 
-      // Insertion dans la table category_videos
-      const { data: categoryVideoData, error: categoryVideoError } = await supabase
+      // Exemple de statut par défaut
+      const defaultProductionStatus = "À monter";
+
+      // 1. Insertion dans category_videos
+      const { data: inserted, error: insertError } = await supabase
         .from("category_videos")
         .insert([
           {
             category_id: Number(categoryId),
-            title: finalTitle,
+            identifier: videoIdentifier, // On insère l'identifiant numérique
+            title: videoTitle,
             production_status: defaultProductionStatus,
           },
         ])
         .select()
         .single();
 
-      if (categoryVideoError) throw categoryVideoError;
+      if (insertError) throw insertError;
 
-      // Insertion dans la table video_details avec l'ID généré
-      const { data: videoDetailsData, error: videoDetailsError } = await supabase
+      // 2. Insertion dans video_details (optionnel, si vous l'utilisez)
+      const { error: detailsError } = await supabase
         .from("video_details")
         .insert([
           {
-            category_video_id: categoryVideoData.id,
-            title: finalTitle,
+            category_video_id: inserted.id,
+            title: videoTitle,
             production_status: defaultProductionStatus,
           },
-        ])
-        .select()
-        .single();
+        ]);
 
-      if (videoDetailsError) throw videoDetailsError;
+      if (detailsError) throw detailsError;
 
       onSuccess();
       onClose();
-    } catch (err: any) {
-      console.error("Erreur lors de l'ajout de la vidéo :", err);
-      setError(err.message);
+    } catch (err: unknown) {
+      console.error("Erreur lors de la création de la vidéo :", err);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Erreur inconnue lors de la création de la vidéo");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -105,65 +132,123 @@ export default function CreateVideoModal({
 
   if (!isOpen) return null;
 
+  // Identifiant complet ex. "A-1"
+  const fullIdentifier = `${categoryIdentifier}-${videoIdentifier}`;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
-      <div className="bg-[#171717] p-8 rounded-lg w-full max-w-md border border-[#424242]">
-        <h2 className="text-2xl font-semibold mb-6 text-[#ECECEC]">Nouvelle vidéo</h2>
+    <div
+      className="
+        fixed inset-0 bg-black bg-opacity-50
+        flex items-center justify-center z-50
+        px-4 py-4
+      "
+    >
+      <div
+        className="
+          bg-[#171717]
+          p-4 sm:p-8
+          rounded-lg
+          w-full max-w-md
+          border border-[#424242]
+        "
+      >
+        <h2 className="text-2xl font-semibold mb-6 text-[#ECECEC]">
+          Nouvelle vidéo
+        </h2>
         {error && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500 text-red-500 rounded">
             {error}
           </div>
         )}
+
         <form onSubmit={handleSubmit}>
+          {/* Catégorie (en lecture seule) */}
           <div className="mb-4">
             <label
-              htmlFor="category"
+              htmlFor="categoryName"
               className="block mb-2 text-sm font-medium text-[#ECECEC]"
             >
               Catégorie
             </label>
             <input
-              id="category"
+              id="categoryName"
               type="text"
-              value={categoryIdentifier}
-              className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC] cursor-not-allowed opacity-50"
+              value={categoryTitle}
+              className="
+                w-full p-3 rounded-lg bg-[#212121]
+                border border-[#424242]
+                text-[#ECECEC]
+                cursor-not-allowed opacity-50
+              "
               readOnly
               disabled
             />
           </div>
+
+          {/* Identifiant complet (lecture seule, non modifiable) */}
+          <div className="mb-4">
+            <label className="block mb-2 text-sm font-medium text-[#ECECEC]">
+              Identifiant complet
+            </label>
+            <div
+              className="
+                w-full p-3 rounded-lg bg-[#212121]
+                border border-[#424242]
+                text-[#ECECEC]
+                cursor-not-allowed opacity-50
+              "
+            >
+              {fullIdentifier}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Cet identifiant est généré automatiquement.
+            </p>
+          </div>
+
+          {/* Titre de la vidéo */}
           <div className="mb-4">
             <label
-              htmlFor="title"
+              htmlFor="videoTitle"
               className="block mb-2 text-sm font-medium text-[#ECECEC]"
             >
               Titre de la vidéo
             </label>
             <input
-              id="title"
+              id="videoTitle"
               type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC]"
-              placeholder="Titre de la vidéo..."
+              value={videoTitle}
+              onChange={(e) => setVideoTitle(e.target.value)}
+              className="
+                w-full p-3 rounded-lg bg-[#212121]
+                border border-[#424242]
+                text-[#ECECEC]
+                focus:outline-none focus:border-[#ECECEC]
+              "
+              placeholder="Saisissez un titre pour la vidéo..."
               required
               disabled={isLoading}
             />
           </div>
-          <p className="text-sm text-gray-400 mb-4">
-            Vous pouvez modifier le titre si nécessaire. Par défaut, il est généré au format {categoryIdentifier}-X.
-          </p>
+
           <div className="flex justify-end gap-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-[#ECECEC] rounded-lg hover:bg-[#212121] transition-colors duration-200"
+              className="
+                px-4 py-2 text-[#ECECEC] rounded-lg
+                hover:bg-[#212121] transition-colors duration-200
+              "
               disabled={isLoading}
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200 border border-[#424242] disabled:opacity-50"
+              className="
+                px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg
+                hover:bg-[#171717] transition-colors duration-200
+                border border-[#424242] disabled:opacity-50
+              "
               disabled={isLoading}
             >
               {isLoading ? "Ajout en cours..." : "Ajouter"}

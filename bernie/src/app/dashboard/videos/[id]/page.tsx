@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
@@ -12,7 +12,7 @@ import {
   updateStatus,
 } from "../../../../services/videoService";
 import { Video, VIDEO_STATUS } from "../../../../types/video";
-import { STATUS_STEPS } from "../../../../constants/videoConstants";
+// L'import de STATUS_STEPS a été supprimé car il n'est pas utilisé.
 import EditableItem from "../../../../components/EditableItem";
 import { StatusProgress } from "../../../../components/StatusProgress";
 import { ArrowLeft, Trash2 } from "react-feather";
@@ -50,12 +50,22 @@ const ErrorState = ({ error, onBack }: ErrorStateProps) => (
   </div>
 );
 
+interface Comment {
+  id: number;
+  comment: string;
+  created_at: string;
+}
+
 export default function VideoPage({ params }: { params: { id: string } }) {
   const [video, setVideo] = useState<Video | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isStatusChanging, setIsStatusChanging] = useState<boolean>(false);
   const router = useRouter();
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [loadingComments, setLoadingComments] = useState(true);
+  const [errorComments, setErrorComments] = useState("");
 
   // État pour la suppression
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -67,9 +77,13 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       try {
         const data = await fetchVideoDetails(params.id);
         setVideo(data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Erreur lors du chargement de la vidéo :", err);
-        setError("Impossible de charger les détails de la vidéo");
+        if (err instanceof Error) {
+          setError("Impossible de charger les détails de la vidéo");
+        } else {
+          setError("Erreur inconnue lors du chargement de la vidéo");
+        }
       } finally {
         setIsLoading(false);
       }
@@ -84,9 +98,13 @@ export default function VideoPage({ params }: { params: { id: string } }) {
     try {
       await updateTitle(params.id, trimmed);
       setVideo((prev) => (prev ? { ...prev, title: trimmed } : null));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour du titre :", err);
-      setError("Impossible de mettre à jour le titre");
+      if (err instanceof Error) {
+        setError("Impossible de mettre à jour le titre");
+      } else {
+        setError("Erreur inconnue lors de la mise à jour du titre");
+      }
     }
   };
 
@@ -97,9 +115,13 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       setVideo((prev) =>
         prev ? { ...prev, description: newDescription } : null
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour de la description :", err);
-      setError("Impossible de mettre à jour la description");
+      if (err instanceof Error) {
+        setError("Impossible de mettre à jour la description");
+      } else {
+        setError("Erreur inconnue lors de la mise à jour de la description");
+      }
     }
   };
 
@@ -110,9 +132,13 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       setVideo((prev) =>
         prev ? { ...prev, instructions_miniature: newInstructions } : null
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour des instructions :", err);
-      setError("Impossible de mettre à jour les instructions");
+      if (err instanceof Error) {
+        setError("Impossible de mettre à jour les instructions");
+      } else {
+        setError("Erreur inconnue lors de la mise à jour des instructions");
+      }
     }
   };
 
@@ -124,13 +150,17 @@ export default function VideoPage({ params }: { params: { id: string } }) {
     try {
       await updateLink(params.id, dbField, newValue);
       setVideo((prev) => (prev ? { ...prev, [dbField]: newValue } : null));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(`Erreur lors de la mise à jour du lien ${dbField} :`, err);
-      setError(`Impossible de mettre à jour le lien ${dbField}`);
+      if (err instanceof Error) {
+        setError(`Impossible de mettre à jour le lien ${dbField}`);
+      } else {
+        setError("Erreur inconnue lors de la mise à jour du lien");
+      }
     }
   };
 
-  // Mise à jour du statut sans restriction de saut, avec toast en cas d'erreur
+  // Mise à jour du statut avec gestion de toast en cas d'erreur
   const handleStatusUpdate = async (
     newStatus: (typeof VIDEO_STATUS)[keyof typeof VIDEO_STATUS]
   ) => {
@@ -141,7 +171,7 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       setVideo((prev) =>
         prev ? { ...prev, production_status: newStatus } : null
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour du statut :", err);
       toast.error(
         err instanceof Error
@@ -166,12 +196,64 @@ export default function VideoPage({ params }: { params: { id: string } }) {
         throw new Error(errorData.error || "Échec de la suppression");
       }
       router.push("/dashboard");
-    } catch (error: any) {
-      console.error("Erreur lors de la suppression de la vidéo :", error);
-      setDeleteError(error.message);
+    } catch (err: unknown) {
+      console.error("Erreur lors de la suppression de la vidéo :", err);
+      if (err instanceof Error) {
+        setDeleteError(err.message);
+      } else {
+        setDeleteError("Erreur inconnue lors de la suppression");
+      }
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
+    }
+  };
+
+  const fetchComments = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/videos/${params.id}/comments`);
+      if (!response.ok) {
+        throw new Error("Erreur lors de la récupération des commentaires");
+      }
+      const data = (await response.json()) as Comment[];
+      setComments(data);
+    } catch (err: unknown) {
+      console.error("Erreur lors du chargement des commentaires", err);
+      if (err instanceof Error) {
+        setErrorComments("Impossible de charger les commentaires");
+      } else {
+        setErrorComments("Erreur inconnue lors du chargement des commentaires");
+      }
+    } finally {
+      setLoadingComments(false);
+    }
+  }, [params.id]);
+
+  useEffect(() => {
+    if (video) {
+      fetchComments();
+    }
+  }, [video, fetchComments]);
+
+  // Fonction pour poster un commentaire
+  const postComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    try {
+      const response = await fetch(`/api/videos/${params.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment: newComment }),
+      });
+      if (!response.ok) {
+        throw new Error("Erreur lors de l'envoi du commentaire");
+      }
+      // Rafraîchir la liste des commentaires
+      setNewComment("");
+      fetchComments();
+    } catch (err: unknown) {
+      console.error("Erreur lors de l'ajout du commentaire", err);
+      alert("Impossible d'ajouter le commentaire");
     }
   };
 
@@ -205,7 +287,7 @@ export default function VideoPage({ params }: { params: { id: string } }) {
           </button>
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mt-4">
             <h1 className="text-2xl md:text-3xl font-semibold flex flex-wrap items-center gap-3">
-              <span className="text-gray-500">#{video.id}</span>
+              <span>{video.fullIdentifier}</span>
               <EditableItem
                 label=""
                 value={video.title}
@@ -218,22 +300,20 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               <span
                 className={`px-3 py-1 rounded-full text-sm font-semibold transition-opacity duration-200 ${
                   isStatusChanging ? "opacity-50" : "opacity-100"
-                } ${
-                  (() => {
-                    switch (video.production_status) {
-                      case VIDEO_STATUS.TO_DO:
-                        return "bg-yellow-600";
-                      case VIDEO_STATUS.IN_PROGRESS:
-                        return "bg-blue-600";
-                      case VIDEO_STATUS.READY_TO_PUBLISH:
-                        return "bg-green-600";
-                      case VIDEO_STATUS.FINISHED:
-                        return "bg-purple-600";
-                      default:
-                        return "bg-gray-600";
-                    }
-                  })()
-                }`}
+                } ${(() => {
+                  switch (video.production_status) {
+                    case VIDEO_STATUS.TO_DO:
+                      return "bg-yellow-600";
+                    case VIDEO_STATUS.IN_PROGRESS:
+                      return "bg-blue-600";
+                    case VIDEO_STATUS.READY_TO_PUBLISH:
+                      return "bg-green-600";
+                    case VIDEO_STATUS.FINISHED:
+                      return "bg-purple-600";
+                    default:
+                      return "bg-gray-600";
+                  }
+                })()}`}
               >
                 {(() => {
                   switch (video.production_status) {
@@ -287,14 +367,16 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               label="Rush brut"
               value={video.rush_link || ""}
               placeholder="Ajouter le lien des rushes"
-              onSave={(newVal) => handleLinkUpdate(newVal, "rush_link")}
+              onSave={(newVal: string) => handleLinkUpdate(newVal, "rush_link")}
               isLink={true}
             />
             <EditableItem
               label="Montage final"
               value={video.video_link || ""}
               placeholder="Ajouter le lien de la vidéo montée"
-              onSave={(newVal) => handleLinkUpdate(newVal, "video_link")}
+              onSave={(newVal: string) =>
+                handleLinkUpdate(newVal, "video_link")
+              }
               isLink={true}
             />
           </Section>
@@ -311,7 +393,9 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               label="Fichier miniature"
               value={video.miniature_link || ""}
               placeholder="Ajouter le lien de la miniature"
-              onSave={(newVal) => handleLinkUpdate(newVal, "miniature_link")}
+              onSave={(newVal: string) =>
+                handleLinkUpdate(newVal, "miniature_link")
+              }
               isLink={true}
             />
           </Section>
@@ -336,6 +420,49 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               </div>
             </div>
           </Section>
+
+          <section className="bg-[#171717] p-4 md:p-6 rounded-lg border border-gray-700 shadow-sm mt-6">
+            <h2 className="text-lg md:text-xl font-medium mb-4">
+              Commentaires internes
+            </h2>
+
+            {/* Formulaire pour ajouter un commentaire */}
+            <form onSubmit={postComment} className="mb-4">
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Ajouter un commentaire..."
+                className="w-full p-2 bg-[#212121] border border-[#424242] rounded-lg text-[#ECECEC] focus:outline-none"
+                rows={3}
+              />
+              <button
+                type="submit"
+                className="mt-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200"
+              >
+                Ajouter
+              </button>
+            </form>
+
+            {/* Liste des commentaires */}
+            {loadingComments ? (
+              <div>Chargement des commentaires...</div>
+            ) : errorComments ? (
+              <div className="text-red-500">{errorComments}</div>
+            ) : comments.length === 0 ? (
+              <div>Aucun commentaire pour le moment.</div>
+            ) : (
+              <ul className="space-y-3">
+                {comments.map((c: Comment) => (
+                  <li key={c.id} className="p-3 bg-[#212121] rounded-lg">
+                    <p className="text-sm">{c.comment}</p>
+                    <span className="text-xs text-gray-400">
+                      {new Date(c.created_at).toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           {deleteError && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500 text-red-500 rounded">

@@ -1,20 +1,20 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-async function getNextIdentifier(supabase: any) {
+async function getNextIdentifier(supabase: SupabaseClient) {
   const { data: categories } = await supabase
     .from('video_categories')
     .select('identifier')
     .order('identifier', { ascending: true });
 
   if (!categories || categories.length === 0) {
-    return ALPHABET[0]; // Retourne 'A' si aucune catégorie n'existe
+    return ALPHABET[0];
   }
 
-  // Trouve le dernier identifiant utilisé
   const lastIdentifier = categories[categories.length - 1].identifier;
   const lastIndex = ALPHABET.indexOf(lastIdentifier);
 
@@ -25,12 +25,10 @@ async function getNextIdentifier(supabase: any) {
   return ALPHABET[lastIndex + 1];
 }
 
-// GET /api/categories
-export async function GET(request: Request): Promise<NextResponse> {
+export async function GET(): Promise<NextResponse> {
   try {
     const supabase = createRouteHandlerClient({ cookies });
 
-    // Vérifier l'authentification
     const { data: { session }, error: authError } = await supabase.auth.getSession();
     if (authError || !session) {
       return NextResponse.json(
@@ -48,15 +46,15 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     return NextResponse.json(data);
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Erreur serveur';
     console.error('Erreur lors de la récupération des catégories:', error);
     return NextResponse.json(
-      { error: 'Erreur serveur' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
 }
 
-// POST /api/categories
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const supabase = createRouteHandlerClient({ cookies });
@@ -86,7 +84,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       .insert([{ 
         identifier,
         title,
-        user_id: session.user.id // Ajout de l'ID de l'utilisateur
+        user_id: session.user.id
       }])
       .select()
       .single();
@@ -94,11 +92,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (error) throw error;
 
     return NextResponse.json(data, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Erreur serveur';
     console.error('Erreur lors de la création de la catégorie:', error);
     return NextResponse.json(
-      { error: error.message },
+      { error: errorMessage },
       { status: 400 }
     );
   }
-} 
+}

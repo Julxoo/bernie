@@ -3,7 +3,7 @@
 import { useEditable } from "../hooks/useEditable";
 import { isUrl } from "../utils/urlUtils";
 import React from "react";
-import { ExternalLink, Edit } from "react-feather";
+import { ExternalLink } from "react-feather";
 
 interface EditableFieldProps {
   value: string;
@@ -108,7 +108,7 @@ export function EditableField({
       ) : (
         <span
           onClick={() => setEditing(true)}
-          className="cursor-pointer text-gray-500 italic p-1 rounded hover:bg-[#2a2a2a] transition-colors"
+          className="cursor-pointer italic p-1 rounded hover:bg-[#2a2a2a] transition-colors"
         >
           {placeholder}
         </span>

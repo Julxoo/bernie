@@ -1,8 +1,10 @@
+// src/components/DashboardLayout.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
+import { signOut } from "next-auth/react";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -14,7 +16,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const handleSignOut = async () => {
     try {
-      // Implémentez ici la logique de déconnexion (exemple : await supabase.auth.signOut())
+      // Utilisation de signOut de NextAuth pour terminer la session
+      await signOut({ redirect: false });
       router.push("/login");
     } catch (error) {
       console.error("Erreur lors de la déconnexion:", error);

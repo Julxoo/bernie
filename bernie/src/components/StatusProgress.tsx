@@ -1,4 +1,4 @@
-import { VIDEO_STATUS, Status } from "../types/video";
+import { Status } from "../types/video";
 import { STATUS_STEPS } from "../constants/videoConstants";
 
 interface StatusProgressProps {
@@ -18,36 +18,6 @@ export function StatusProgress({
     if (stepIndex < currentIndex) return "completed";
     if (stepIndex === currentIndex) return "current";
     return "upcoming";
-  };
-
-  const getStatusColor = (status: Status) => {
-    switch (status) {
-      case VIDEO_STATUS.TO_DO:
-        return "bg-yellow-600";
-      case VIDEO_STATUS.IN_PROGRESS:
-        return "bg-blue-600";
-      case VIDEO_STATUS.READY_TO_PUBLISH:
-        return "bg-green-600";
-      case VIDEO_STATUS.FINISHED:
-        return "bg-purple-600";
-      default:
-        return "bg-gray-600";
-    }
-  };
-
-  const getStatusText = (status: Status) => {
-    switch (status) {
-      case VIDEO_STATUS.TO_DO:
-        return "À faire";
-      case VIDEO_STATUS.IN_PROGRESS:
-        return "En cours";
-      case VIDEO_STATUS.READY_TO_PUBLISH:
-        return "Prêt à publier";
-      case VIDEO_STATUS.FINISHED:
-        return "Terminé";
-      default:
-        return status;
-    }
   };
 
   return (

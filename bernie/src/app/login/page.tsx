@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { signIn } from "next-auth/react";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -10,7 +11,6 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const supabase = createClientComponentClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,23 +18,33 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const result = await signIn("credentials", {
         email,
         password,
+        redirect: false,
       });
 
-      if (error) {
-        setErrorMsg(error.message);
-        return;
-      }
+      console.log("Résultat de signIn:", result);
 
-      if (data?.session) {
+      if (result?.error) {
+        toast.error(result.error);
+        setErrorMsg(result.error);
+      } else if (result?.ok) {
         router.push("/dashboard");
-        router.refresh(); // Force le rafraîchissement pour mettre à jour la session
+      } else {
+        // Cas non prévu
+        toast.error("Connexion échouée");
+        setErrorMsg("Connexion échouée");
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Erreur de connexion:", error);
-      setErrorMsg("Une erreur est survenue lors de la connexion");
+      if (error instanceof Error) {
+        toast.error(error.message);
+        setErrorMsg(error.message);
+      } else {
+        toast.error("Une erreur inconnue est survenue lors de la connexion");
+        setErrorMsg("Une erreur inconnue est survenue lors de la connexion");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -42,6 +52,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#212121] text-[#ECECEC]">
+      <Toaster />
       <form
         onSubmit={handleSubmit}
         className="w-96 p-8 bg-[#171717] rounded-lg shadow-xl border border-[#424242]"
@@ -57,7 +68,7 @@ export default function LoginPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC] transition-colors duration-200"
+            className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC]"
             required
             disabled={isLoading}
           />
@@ -71,7 +82,7 @@ export default function LoginPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC] focus:outline-none focus:border-[#ECECEC] transition-colors duration-200"
+            className="w-full p-3 rounded-lg bg-[#212121] border border-[#424242] text-[#ECECEC]"
             required
             disabled={isLoading}
           />
@@ -79,7 +90,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-[#424242] hover:bg-[#171717] text-[#ECECEC] py-3 px-4 rounded-lg transition-colors duration-200 border border-[#424242] disabled:opacity-50"
+          className="w-full bg-[#424242] hover:bg-[#171717] text-[#ECECEC] py-3 px-4 rounded-lg border border-[#424242] disabled:opacity-50"
         >
           {isLoading ? "Connexion en cours..." : "Se connecter"}
         </button>

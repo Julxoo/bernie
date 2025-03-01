@@ -8,8 +8,6 @@ export async function GET(
 ) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
-
-    // Vérifier l'authentification
     const {
       data: { session },
       error: authError,
@@ -17,26 +15,18 @@ export async function GET(
     if (authError || !session) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
-
     const { data, error } = await supabase
       .from("category_videos")
-      .select(
-        `
+      .select(`
         *,
         video_details (*)
-      `
-      )
+      `)
       .eq("id", params.videoId)
       .single();
-
     if (error) throw error;
-
     return NextResponse.json(data);
-  } catch (error) {
-    console.error(
-      "Erreur lors de la récupération des détails de la vidéo:",
-      error
-    );
+  } catch (error: unknown) {
+    console.error("Erreur lors de la récupération des détails de la vidéo:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
@@ -54,23 +44,15 @@ export async function DELETE(
     if (authError || !session) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
-
-    // Suppression de la vidéo depuis la table "category_videos"
     const { error } = await supabase
       .from("category_videos")
       .delete()
       .eq("id", params.videoId);
-
-    if (error) {
-      throw error;
-    }
-
+    if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Erreur lors de la suppression";
     console.error("Erreur lors de la suppression de la vidéo:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la suppression" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
