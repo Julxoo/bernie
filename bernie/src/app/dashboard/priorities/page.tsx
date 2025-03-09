@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { useRouter } from "next/navigation";
 
 interface VideoPriority {
@@ -25,15 +24,11 @@ export default function PrioritiesPage() {
         if (!response.ok) {
           throw new Error("Erreur lors de la récupération des priorités");
         }
-        const data = (await response.json()) as VideoPriority[];
+        const data = await response.json();
         setVideos(data);
       } catch (err: unknown) {
         console.error("Erreur lors du chargement des priorités", err);
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Impossible de charger les priorités");
-        }
+        setError("Impossible de charger les priorités");
       } finally {
         setIsLoading(false);
       }
@@ -43,11 +38,10 @@ export default function PrioritiesPage() {
   }, []);
 
   return (
-    <DashboardLayout>
+    <div className="p-4 text-[#ECECEC]">
       <header className="mb-6">
         <h1 className="text-2xl md:text-3xl font-semibold">Priorisation et planification</h1>
       </header>
-
       {isLoading ? (
         <div>Chargement...</div>
       ) : error ? (
@@ -76,6 +70,6 @@ export default function PrioritiesPage() {
           ))}
         </div>
       )}
-    </DashboardLayout>
+    </div>
   );
 }

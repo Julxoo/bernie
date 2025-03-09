@@ -3,20 +3,64 @@ Chemin : ./tailwind.config.ts
 import type { Config } from "tailwindcss";
 
 const config = {
-  content: [
+    darkMode: ["class"],
+    content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}"
   ],
   theme: {
-    extend: {
-      colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)"
-      }
-    }
+  	extend: {
+  		colors: {
+  			background: 'hsl(var(--background))',
+  			foreground: 'hsl(var(--foreground))',
+  			card: {
+  				DEFAULT: 'hsl(var(--card))',
+  				foreground: 'hsl(var(--card-foreground))'
+  			},
+  			popover: {
+  				DEFAULT: 'hsl(var(--popover))',
+  				foreground: 'hsl(var(--popover-foreground))'
+  			},
+  			primary: {
+  				DEFAULT: 'hsl(var(--primary))',
+  				foreground: 'hsl(var(--primary-foreground))'
+  			},
+  			secondary: {
+  				DEFAULT: 'hsl(var(--secondary))',
+  				foreground: 'hsl(var(--secondary-foreground))'
+  			},
+  			muted: {
+  				DEFAULT: 'hsl(var(--muted))',
+  				foreground: 'hsl(var(--muted-foreground))'
+  			},
+  			accent: {
+  				DEFAULT: 'hsl(var(--accent))',
+  				foreground: 'hsl(var(--accent-foreground))'
+  			},
+  			destructive: {
+  				DEFAULT: 'hsl(var(--destructive))',
+  				foreground: 'hsl(var(--destructive-foreground))'
+  			},
+  			border: 'hsl(var(--border))',
+  			input: 'hsl(var(--input))',
+  			ring: 'hsl(var(--ring))',
+  			chart: {
+  				'1': 'hsl(var(--chart-1))',
+  				'2': 'hsl(var(--chart-2))',
+  				'3': 'hsl(var(--chart-3))',
+  				'4': 'hsl(var(--chart-4))',
+  				'5': 'hsl(var(--chart-5))'
+  			}
+  		},
+  		borderRadius: {
+  			lg: 'var(--radius)',
+  			md: 'calc(var(--radius) - 2px)',
+  			sm: 'calc(var(--radius) - 4px)'
+  		}
+  	}
   },
-  plugins: []
+  plugins: [require("tailwindcss-animate")]
 } satisfies Config;
 
 export default config;
@@ -155,27 +199,66 @@ if __name__ == "__main__":
         print(f"Le dossier {directory} n'existe pas.")
 
 
+===== components.json =====
+Chemin : ./components.json
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.ts",
+    "css": "src/app/globals.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  },
+  "iconLibrary": "lucide"
+}
+
 ===== middleware.ts =====
 Chemin : ./src/middleware.ts
-// src/middleware.ts
-import { getToken } from "next-auth/jwt";
+// middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export async function middleware(req: NextRequest) {
-  // Vérification de la présence d'un token NextAuth
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-  
+export function middleware(req: NextRequest) {
+  const token = req.cookies.get("sb:token");
   if (!token) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
-  
   return NextResponse.next();
 }
 
 export const config = {
   matcher: ["/dashboard/:path*", "/api/:path*"],
 };
+
+
+===== SupabaseContext.ts =====
+Chemin : ./src/lib/SupabaseContext.ts
+// src/lib/SupabaseContext.tsx
+import { createContext } from "react";
+import { SupabaseClient } from "@supabase/supabase-js";
+
+export const SupabaseContext = createContext<SupabaseClient | null>(null);
+
+
+===== utils.ts =====
+Chemin : ./src/lib/utils.ts
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
 
 
 ===== useEditable.ts =====
@@ -261,6 +344,7 @@ interface VideoDetailsResult {
   production_status: string;
   created_at: string;
   updated_at: string;
+  category_id: number;
   video_details: Array<{
     title: string;
     instructions_miniature: string;
@@ -270,7 +354,8 @@ interface VideoDetailsResult {
     production_status: string;
     description: string;
   }>;
-  video_categories: { identifier: string }[] | null;
+  // On accepte que Supabase renvoie soit un tableau, soit un objet unique pour la catégorie
+  video_categories: { identifier: string }[] | { identifier: string } | null;
 }
 
 /**
@@ -298,6 +383,10 @@ const updateFieldAcrossTables = async (
   }
 };
 
+/**
+ * Récupère les détails d'une vidéo et construit le fullIdentifier sous la forme "A-1".
+ * On récupère également category_id et production_status pour satisfaire l'interface Video.
+ */
 export const fetchVideoDetails = async (id: string): Promise<Video> => {
   const { data, error } = await supabase
     .from("category_videos")
@@ -309,6 +398,7 @@ export const fetchVideoDetails = async (id: string): Promise<Video> => {
       production_status,
       created_at,
       updated_at,
+      category_id,
       video_details (
         title,
         instructions_miniature,
@@ -332,13 +422,21 @@ export const fetchVideoDetails = async (id: string): Promise<Video> => {
     throw new Error("Détails de la vidéo introuvables");
   }
 
-  // Conversion via unknown pour ensuite le caster en VideoDetailsResult
   const parsedData = data as unknown as VideoDetailsResult;
-  const { video_categories, video_details, ...rest } = parsedData;
-  const categoryIdentifier =
-    video_categories && video_categories.length > 0
-      ? video_categories[0].identifier
-      : "";
+  const { video_details, ...rest } = parsedData;
+
+  // Gestion de video_categories : tableau ou objet unique
+  let categoryIdentifier = "";
+  if (parsedData.video_categories) {
+    if (Array.isArray(parsedData.video_categories)) {
+      categoryIdentifier =
+        parsedData.video_categories.length > 0
+          ? parsedData.video_categories[0].identifier
+          : "";
+    } else {
+      categoryIdentifier = parsedData.video_categories.identifier;
+    }
+  }
   const numericIdentifier = parsedData.identifier || 0;
   const fullIdentifier = `${categoryIdentifier}-${numericIdentifier}`;
 
@@ -346,14 +444,39 @@ export const fetchVideoDetails = async (id: string): Promise<Video> => {
     ...rest,
     ...(video_details ? video_details[0] : {}),
     fullIdentifier,
+    category_id: rest.category_id,
+    status: rest.production_status,
   } as Video;
 };
 
+/**
+ * Met à jour le titre d'une vidéo et enregistre l'action dans user_activity.
+ * @param userId - L'ID de l'utilisateur effectuant l'action.
+ * @param id - L'ID de la vidéo.
+ * @param newTitle - Le nouveau titre.
+ */
 export const updateTitle = async (
+  userId: string,
   id: string,
   newTitle: string
 ): Promise<void> => {
+  // 1. Met à jour le titre dans les deux tables
   await updateFieldAcrossTables(id, "title", newTitle);
+
+  // 2. Enregistre un log dans la table user_activity
+  const detailsText = `La vidéo ID=${id} a un nouveau titre: "${newTitle}"`;
+  const { error: insertError } = await supabase
+    .from("user_activity")
+    .insert([
+      {
+        user_id: userId,
+        action_type: "update_title",
+        details: detailsText,
+      },
+    ]);
+  if (insertError) {
+    console.error("Impossible d'insérer le log:", insertError);
+  }
 };
 
 export const updateDescription = async (
@@ -406,11 +529,21 @@ export const updateStatus = async (
 
 ===== Sidebar.tsx =====
 Chemin : ./src/components/Sidebar.tsx
-// src/components/Sidebar.tsx
+// Exemple dans Sidebar.tsx
 "use client";
 
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useUser } from "@supabase/auth-helpers-react"; // <-- Import correct
+import { usePathname } from "next/navigation";
+import { 
+  Grid, 
+  BarChart2, 
+  List, 
+  Settings, 
+  User, 
+  LogOut,
+  X 
+} from "lucide-react";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -419,86 +552,91 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, onToggle, onSignOut }: SidebarProps) {
-  const { data: session } = useSession(); // Ce hook fonctionne maintenant car l'application est enveloppée dans SessionProvider
+  const user = useUser();
+  const pathname = usePathname();
+
+  const handleLinkClick = (href: string) => {
+    if (pathname === href) return;
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      onToggle();
+    }
+  };
+
+  const isActiveLink = (href: string) => pathname === href;
 
   return (
-    <aside
-      className={`fixed inset-y-0 left-0 transform transition-transform duration-300 ease-in-out z-40 w-64 bg-[#171717] flex flex-col border-r border-[#424242] ${
-        isOpen ? "translate-x-0" : "-translate-x-full"
-      } md:static md:translate-x-0`}
-    >
-      <div className="p-6">
-        <h1 className="text-xl font-semibold text-[#ECECEC]">Dashboard</h1>
-      </div>
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
-          <li>
-            <Link
-              href="/dashboard"
-              className="text-[#ECECEC] hover:text-gray-300 block py-2"
+    <>
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden" 
+          onClick={onToggle}
+        />
+      )}
+      <aside
+        className={`
+          fixed top-0 left-0 z-40 w-64 h-screen bg-[#171717] border-r border-[#424242]
+          transform transition-transform duration-300 ease-in-out
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
+          md:translate-x-0
+        `}
+      >
+        <div className="flex flex-col h-full">
+          <div className="p-4 border-b border-[#424242] flex items-center justify-between">
+            <span className="text-[#ECECEC] font-medium">Dashboard</span>
+            <button 
               onClick={onToggle}
+              className="md:hidden text-[#ECECEC]"
+              aria-label="Fermer le menu"
             >
-              Catégories
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/stats"
-              className="text-[#ECECEC] hover:text-gray-300 block py-2"
-              onClick={onToggle}
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <nav className="flex-1 overflow-y-auto">
+            <ul className="space-y-1 py-2">
+              <li>
+                <Link
+                  href="/dashboard"
+                  className={`
+                    flex items-center space-x-3 px-4 py-2
+                    ${isActiveLink("/dashboard") ? "bg-[#252525] text-white" : "text-[#ECECEC] hover:bg-[#222222]"}
+                  `}
+                  onClick={() => handleLinkClick("/dashboard")}
+                >
+                  <Grid className="w-5 h-5" />
+                  <span>Catégories</span>
+                </Link>
+              </li>
+              {/* ... autres liens */}
+              {user && user.role === "admin" && (
+                <li>
+                  <Link
+                    href="/dashboard/admin"
+                    className={`
+                      flex items-center space-x-3 px-4 py-2
+                      ${isActiveLink("/dashboard/admin") ? "bg-[#252525] text-white" : "text-[#ECECEC] hover:bg-[#222222]"}
+                    `}
+                    onClick={() => handleLinkClick("/dashboard/admin")}
+                  >
+                    <Settings className="w-5 h-5" />
+                    <span>Administration</span>
+                  </Link>
+                </li>
+              )}
+            </ul>
+            {/* ... */}
+          </nav>
+          <div className="p-4 border-t border-[#424242] mt-auto">
+            <button
+              onClick={onSignOut}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-[#252525] hover:bg-[#333333] rounded-lg text-[#ECECEC]"
             >
-              Statistiques
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/alerts"
-              className="text-[#ECECEC] hover:text-gray-300 block py-2"
-              onClick={onToggle}
-            >
-              Alertes
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/priorities"
-              className="text-[#ECECEC] hover:text-gray-300 block py-2"
-              onClick={onToggle}
-            >
-              Priorités
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/performance"
-              className="text-[#ECECEC] hover:text-gray-300 block py-2"
-              onClick={onToggle}
-            >
-              Performance
-            </Link>
-          </li>
-          {session?.user?.role === "admin" && (
-            <li>
-              <Link
-                href="/dashboard/admin"
-                className="text-[#ECECEC] hover:text-gray-300 block py-2"
-                onClick={onToggle}
-              >
-                Administration
-              </Link>
-            </li>
-          )}
-        </ul>
-      </nav>
-      <div className="p-4 border-t border-[#424242]">
-        <button
-          onClick={onSignOut}
-          className="w-full px-4 py-2 text-sm bg-[#424242] hover:bg-[#171717] rounded-lg transition-colors duration-200 border border-[#424242] text-[#ECECEC]"
-        >
-          Déconnexion
-        </button>
-      </div>
-    </aside>
+              <LogOut className="w-4 h-4" />
+              <span>Déconnexion</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -957,6 +1095,107 @@ export default function CreateVideoModal({
 }
 
 
+===== BottomNav.tsx =====
+Chemin : ./src/components/BottomNav.tsx
+"use client";
+
+import Link from "next/link";
+import { useUser } from "@supabase/auth-helpers-react"; // Remplacer useSession par useUser
+import { usePathname } from "next/navigation";
+import { 
+  Grid,
+  BarChart2,
+  List,
+  Settings,
+  User,
+  LogOut
+} from "lucide-react";
+
+interface BottomNavProps {
+  onSignOut: () => void;
+}
+
+export default function BottomNav({ onSignOut }: BottomNavProps) {
+  const user = useUser(); // Utilisation directe
+  const pathname = usePathname();
+
+  const isActiveLink = (href: string) => pathname === href;
+
+  return (
+    <nav
+      className="
+        fixed bottom-0 left-0 right-0 z-40 
+        bg-[#171717] border-t border-[#424242]
+        flex justify-between items-center 
+        px-2
+        h-16   /* Hauteur fixe de la bottomNav */
+        md:hidden
+      "
+    >
+      <Link
+        href="/dashboard"
+        className={`flex flex-col items-center justify-center flex-1 ${
+          isActiveLink("/dashboard") ? "text-white" : "text-[#a1a1a1]"
+        }`}
+      >
+        <Grid className="w-5 h-5" />
+        <span className="text-xs">Catégories</span>
+      </Link>
+
+      <Link
+        href="/dashboard/stats"
+        className={`flex flex-col items-center justify-center flex-1 ${
+          isActiveLink("/dashboard/stats") ? "text-white" : "text-[#a1a1a1]"
+        }`}
+      >
+        <BarChart2 className="w-5 h-5" />
+        <span className="text-xs">Stats</span>
+      </Link>
+
+      <Link
+        href="/dashboard/priorities"
+        className={`flex flex-col items-center justify-center flex-1 ${
+          isActiveLink("/dashboard/priorities") ? "text-white" : "text-[#a1a1a1]"
+        }`}
+      >
+        <List className="w-5 h-5" />
+        <span className="text-xs">Priorités</span>
+      </Link>
+
+      {user && user.role === "admin" && (
+        <Link
+          href="/dashboard/admin"
+          className={`flex flex-col items-center justify-center flex-1 ${
+            isActiveLink("/dashboard/admin") ? "text-white" : "text-[#a1a1a1]"
+          }`}
+        >
+          <Settings className="w-5 h-5" />
+          <span className="text-xs">Admin</span>
+        </Link>
+      )}
+
+      <Link
+        href="/dashboard/profile"
+        className={`flex flex-col items-center justify-center flex-1 ${
+          isActiveLink("/dashboard/profile") ? "text-white" : "text-[#a1a1a1]"
+        }`}
+      >
+        <User className="w-5 h-5" />
+        <span className="text-xs">Profil</span>
+      </Link>
+
+      <button
+        onClick={onSignOut}
+        className="flex flex-col items-center justify-center flex-1 text-[#a1a1a1]"
+      >
+        <LogOut className="w-5 h-5" />
+        <span className="text-xs">Quitter</span>
+      </button>
+    </nav>
+  );
+}
+
+
 ===== Header.tsx =====
 Chemin : ./src/components/Header.tsx
 "use client";
@@ -996,6 +1235,75 @@ export default function Header({
         </button>
       </nav>
     </header>
+  );
+}
+
+
+===== GlobalWrapper.tsx =====
+Chemin : ./src/components/GlobalWrapper.tsx
+"use client";
+
+import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
+import Sidebar from "./Sidebar";
+import BottomNav from "./BottomNav";
+
+interface GlobalWrapperProps {
+  children: React.ReactNode;
+}
+
+export default function GlobalWrapper({ children }: GlobalWrapperProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Ne pas afficher la sidebar/bottomNav sur la page de login
+  const isLoginPage = pathname.startsWith("/login");
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  const handleToggleSidebar = () => setIsSidebarOpen((prev) => !prev);
+  const handleSignOut = async () => {
+    await signOut({ redirect: false });
+    router.push("/login");
+  };
+
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="relative min-h-screen bg-[#212121]">
+      {/* Barre latérale sur desktop */}
+      <div className="hidden md:block">
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onToggle={handleToggleSidebar}
+          onSignOut={handleSignOut}
+        />
+      </div>
+
+      {/* Bottom navigation sur mobile */}
+      <div className="md:hidden">
+        <BottomNav onSignOut={handleSignOut} />
+      </div>
+
+      {/* Contenu principal */}
+      <main
+        className={`
+          pt-16   /* top padding (pour le header ou autre, si nécessaire) */
+          md:pt-4 md:p-8
+          text-[#ECECEC] overflow-y-auto
+          transition-all duration-300
+          ${isSidebarOpen ? "md:ml-64" : ""}
+          /* IMPORTANT : padding-bottom pour ne pas que le content soit caché par la bottom nav en mobile */
+          pb-16   /* sur mobile */
+          md:pb-0 /* sur desktop, pas besoin */
+        `}
+      >
+        {children}
+      </main>
+    </div>
   );
 }
 
@@ -1165,12 +1473,21 @@ export function StatusProgress({
 
 ===== Providers.tsx =====
 Chemin : ./src/components/Providers.tsx
+// src/components/Providers.tsx
 "use client";
 
-import { SessionProvider } from "next-auth/react";
+import { useState } from "react";
+import { createPagesBrowserClient } from "@supabase/auth-helpers-nextjs";
+import { SessionContextProvider } from "@supabase/auth-helpers-react";
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  return <SessionProvider>{children}</SessionProvider>;
+  const [supabaseClient] = useState(() => createPagesBrowserClient());
+
+  return (
+    <SessionContextProvider supabaseClient={supabaseClient}>
+      {children}
+    </SessionContextProvider>
+  );
 }
 
 
@@ -1372,6 +1689,607 @@ export default function CreateVideoModal({
 }
 
 
+===== card.tsx =====
+Chemin : ./src/components/ui/card.tsx
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+const Card = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-xl border bg-card text-card-foreground shadow",
+      className
+    )}
+    {...props}
+  />
+))
+Card.displayName = "Card"
+
+const CardHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col space-y-1.5 p-6", className)}
+    {...props}
+  />
+))
+CardHeader.displayName = "CardHeader"
+
+const CardTitle = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("font-semibold leading-none tracking-tight", className)}
+    {...props}
+  />
+))
+CardTitle.displayName = "CardTitle"
+
+const CardDescription = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("text-sm text-muted-foreground", className)}
+    {...props}
+  />
+))
+CardDescription.displayName = "CardDescription"
+
+const CardContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+))
+CardContent.displayName = "CardContent"
+
+const CardFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex items-center p-6 pt-0", className)}
+    {...props}
+  />
+))
+CardFooter.displayName = "CardFooter"
+
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+
+
+===== scroll-area.tsx =====
+Chemin : ./src/components/ui/scroll-area.tsx
+"use client"
+
+import * as React from "react"
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
+
+import { cn } from "@/lib/utils"
+
+const ScrollArea = React.forwardRef<
+  React.ElementRef<typeof ScrollAreaPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
+>(({ className, children, ...props }, ref) => (
+  <ScrollAreaPrimitive.Root
+    ref={ref}
+    className={cn("relative overflow-hidden", className)}
+    {...props}
+  >
+    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+      {children}
+    </ScrollAreaPrimitive.Viewport>
+    <ScrollBar />
+    <ScrollAreaPrimitive.Corner />
+  </ScrollAreaPrimitive.Root>
+))
+ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName
+
+const ScrollBar = React.forwardRef<
+  React.ElementRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>,
+  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
+>(({ className, orientation = "vertical", ...props }, ref) => (
+  <ScrollAreaPrimitive.ScrollAreaScrollbar
+    ref={ref}
+    orientation={orientation}
+    className={cn(
+      "flex touch-none select-none transition-colors",
+      orientation === "vertical" &&
+        "h-full w-2.5 border-l border-l-transparent p-[1px]",
+      orientation === "horizontal" &&
+        "h-2.5 flex-col border-t border-t-transparent p-[1px]",
+      className
+    )}
+    {...props}
+  >
+    <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
+  </ScrollAreaPrimitive.ScrollAreaScrollbar>
+))
+ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
+
+export { ScrollArea, ScrollBar }
+
+
+===== table.tsx =====
+Chemin : ./src/components/ui/table.tsx
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+const Table = React.forwardRef<
+  HTMLTableElement,
+  React.HTMLAttributes<HTMLTableElement>
+>(({ className, ...props }, ref) => (
+  <div className="relative w-full overflow-auto">
+    <table
+      ref={ref}
+      className={cn("w-full caption-bottom text-sm", className)}
+      {...props}
+    />
+  </div>
+))
+Table.displayName = "Table"
+
+const TableHeader = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+))
+TableHeader.displayName = "TableHeader"
+
+const TableBody = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tbody
+    ref={ref}
+    className={cn("[&_tr:last-child]:border-0", className)}
+    {...props}
+  />
+))
+TableBody.displayName = "TableBody"
+
+const TableFooter = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tfoot
+    ref={ref}
+    className={cn(
+      "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
+      className
+    )}
+    {...props}
+  />
+))
+TableFooter.displayName = "TableFooter"
+
+const TableRow = React.forwardRef<
+  HTMLTableRowElement,
+  React.HTMLAttributes<HTMLTableRowElement>
+>(({ className, ...props }, ref) => (
+  <tr
+    ref={ref}
+    className={cn(
+      "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+      className
+    )}
+    {...props}
+  />
+))
+TableRow.displayName = "TableRow"
+
+const TableHead = React.forwardRef<
+  HTMLTableCellElement,
+  React.ThHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <th
+    ref={ref}
+    className={cn(
+      "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+      className
+    )}
+    {...props}
+  />
+))
+TableHead.displayName = "TableHead"
+
+const TableCell = React.forwardRef<
+  HTMLTableCellElement,
+  React.TdHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <td
+    ref={ref}
+    className={cn(
+      "p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+      className
+    )}
+    {...props}
+  />
+))
+TableCell.displayName = "TableCell"
+
+const TableCaption = React.forwardRef<
+  HTMLTableCaptionElement,
+  React.HTMLAttributes<HTMLTableCaptionElement>
+>(({ className, ...props }, ref) => (
+  <caption
+    ref={ref}
+    className={cn("mt-4 text-sm text-muted-foreground", className)}
+    {...props}
+  />
+))
+TableCaption.displayName = "TableCaption"
+
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableCaption,
+}
+
+
+===== calendar.tsx =====
+Chemin : ./src/components/ui/calendar.tsx
+"use client"
+
+import * as React from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+import { DayPicker } from "react-day-picker"
+
+import { cn } from "@/lib/utils"
+import { buttonVariants } from "@/components/ui/button"
+
+export type CalendarProps = React.ComponentProps<typeof DayPicker>
+
+function Calendar({
+  className,
+  classNames,
+  showOutsideDays = true,
+  ...props
+}: CalendarProps) {
+  return (
+    <DayPicker
+      showOutsideDays={showOutsideDays}
+      className={cn("p-3", className)}
+      classNames={{
+        months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+        month: "space-y-4",
+        caption: "flex justify-center pt-1 relative items-center",
+        caption_label: "text-sm font-medium",
+        nav: "space-x-1 flex items-center",
+        nav_button: cn(
+          buttonVariants({ variant: "outline" }),
+          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+        ),
+        nav_button_previous: "absolute left-1",
+        nav_button_next: "absolute right-1",
+        table: "w-full border-collapse space-y-1",
+        head_row: "flex",
+        head_cell:
+          "text-muted-foreground rounded-md w-8 font-normal text-[0.8rem]",
+        row: "flex w-full mt-2",
+        cell: cn(
+          "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected].day-range-end)]:rounded-r-md",
+          props.mode === "range"
+            ? "[&:has(>.day-range-end)]:rounded-r-md [&:has(>.day-range-start)]:rounded-l-md first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md"
+            : "[&:has([aria-selected])]:rounded-md"
+        ),
+        day: cn(
+          buttonVariants({ variant: "ghost" }),
+          "h-8 w-8 p-0 font-normal aria-selected:opacity-100"
+        ),
+        day_range_start: "day-range-start",
+        day_range_end: "day-range-end",
+        day_selected:
+          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+        day_today: "bg-accent text-accent-foreground",
+        day_outside:
+          "day-outside text-muted-foreground aria-selected:bg-accent/50 aria-selected:text-muted-foreground",
+        day_disabled: "text-muted-foreground opacity-50",
+        day_range_middle:
+          "aria-selected:bg-accent aria-selected:text-accent-foreground",
+        day_hidden: "invisible",
+        ...classNames,
+      }}
+      components={{
+        IconLeft: ({ className, ...props }) => (
+          <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
+        ),
+        IconRight: ({ className, ...props }) => (
+          <ChevronRight className={cn("h-4 w-4", className)} {...props} />
+        ),
+      }}
+      {...props}
+    />
+  )
+}
+Calendar.displayName = "Calendar"
+
+export { Calendar }
+
+
+===== switch.tsx =====
+Chemin : ./src/components/ui/switch.tsx
+"use client"
+
+import * as React from "react"
+import * as SwitchPrimitives from "@radix-ui/react-switch"
+
+import { cn } from "@/lib/utils"
+
+const Switch = React.forwardRef<
+  React.ElementRef<typeof SwitchPrimitives.Root>,
+  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
+>(({ className, ...props }, ref) => (
+  <SwitchPrimitives.Root
+    className={cn(
+      "peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input",
+      className
+    )}
+    {...props}
+    ref={ref}
+  >
+    <SwitchPrimitives.Thumb
+      className={cn(
+        "pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0"
+      )}
+    />
+  </SwitchPrimitives.Root>
+))
+Switch.displayName = SwitchPrimitives.Root.displayName
+
+export { Switch }
+
+
+===== button.tsx =====
+Chemin : ./src/components/ui/button.tsx
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  {
+    variants: {
+      variant: {
+        default:
+          "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+        outline:
+          "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
+        secondary:
+          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-9 px-4 py-2",
+        sm: "h-8 rounded-md px-3 text-xs",
+        lg: "h-10 rounded-md px-8",
+        icon: "h-9 w-9",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button"
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
+Button.displayName = "Button"
+
+export { Button, buttonVariants }
+
+
+===== badge.tsx =====
+Chemin : ./src/components/ui/badge.tsx
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const badgeVariants = cva(
+  "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      variant: {
+        default:
+          "border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80",
+        secondary:
+          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        destructive:
+          "border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80",
+        outline: "text-foreground",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  }
+)
+
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {}
+
+function Badge({ className, variant, ...props }: BadgeProps) {
+  return (
+    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+  )
+}
+
+export { Badge, badgeVariants }
+
+
+===== avatar.tsx =====
+Chemin : ./src/components/ui/avatar.tsx
+"use client"
+
+import * as React from "react"
+import * as AvatarPrimitive from "@radix-ui/react-avatar"
+
+import { cn } from "@/lib/utils"
+
+const Avatar = React.forwardRef<
+  React.ElementRef<typeof AvatarPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <AvatarPrimitive.Root
+    ref={ref}
+    className={cn(
+      "relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full",
+      className
+    )}
+    {...props}
+  />
+))
+Avatar.displayName = AvatarPrimitive.Root.displayName
+
+const AvatarImage = React.forwardRef<
+  React.ElementRef<typeof AvatarPrimitive.Image>,
+  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
+>(({ className, ...props }, ref) => (
+  <AvatarPrimitive.Image
+    ref={ref}
+    className={cn("aspect-square h-full w-full", className)}
+    {...props}
+  />
+))
+AvatarImage.displayName = AvatarPrimitive.Image.displayName
+
+const AvatarFallback = React.forwardRef<
+  React.ElementRef<typeof AvatarPrimitive.Fallback>,
+  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
+>(({ className, ...props }, ref) => (
+  <AvatarPrimitive.Fallback
+    ref={ref}
+    className={cn(
+      "flex h-full w-full items-center justify-center rounded-full bg-muted",
+      className
+    )}
+    {...props}
+  />
+))
+AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
+
+export { Avatar, AvatarImage, AvatarFallback }
+
+
+===== progress.tsx =====
+Chemin : ./src/components/ui/progress.tsx
+"use client"
+
+import * as React from "react"
+import * as ProgressPrimitive from "@radix-ui/react-progress"
+
+import { cn } from "@/lib/utils"
+
+const Progress = React.forwardRef<
+  React.ElementRef<typeof ProgressPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root>
+>(({ className, value, ...props }, ref) => (
+  <ProgressPrimitive.Root
+    ref={ref}
+    className={cn(
+      "relative h-2 w-full overflow-hidden rounded-full bg-primary/20",
+      className
+    )}
+    {...props}
+  >
+    <ProgressPrimitive.Indicator
+      className="h-full w-full flex-1 bg-primary transition-all"
+      style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+    />
+  </ProgressPrimitive.Root>
+))
+Progress.displayName = ProgressPrimitive.Root.displayName
+
+export { Progress }
+
+
+===== skeleton.tsx =====
+Chemin : ./src/components/ui/skeleton.tsx
+import { cn } from "@/lib/utils"
+
+function Skeleton({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn("animate-pulse rounded-md bg-primary/10", className)}
+      {...props}
+    />
+  )
+}
+
+export { Skeleton }
+
+
+===== input.tsx =====
+Chemin : ./src/components/ui/input.tsx
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
+  ({ className, type, ...props }, ref) => {
+    return (
+      <input
+        type={type}
+        className={cn(
+          "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+          className
+        )}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
+Input.displayName = "Input"
+
+export { Input }
+
+
 ===== videoConstants.ts =====
 Chemin : ./src/constants/videoConstants.ts
 import { VIDEO_STATUS, StatusStep } from "../types/video";
@@ -1403,21 +2321,8 @@ export const STATUS_STEPS: StatusStep[] = [
 ===== layout.tsx =====
 Chemin : ./src/app/layout.tsx
 // src/app/layout.tsx
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import React from "react";
-import { Providers } from "@/components/Providers"; // Import du composant client
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-export const metadata: Metadata = {
-  title: "Create Next App",
-  description: "Generated by create next app",
-};
+import { Providers } from "@/components/Providers";
 
 export default function RootLayout({
   children,
@@ -1426,8 +2331,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} antialiased`}>
-        <Providers>{children}</Providers>
+      <body>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );
@@ -1440,22 +2347,77 @@ Chemin : ./src/app/globals.css
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+body {
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
+
+
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica, sans-serif;
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
 
 
@@ -1493,6 +2455,100 @@ export async function GET() {
 
   // Ici, mettez la logique de votre API pour les admins
   return NextResponse.json({ message: "Bienvenue dans l'API d'administration" });
+}
+
+
+===== route.ts =====
+Chemin : ./src/app/api/admin/users-activity/route.ts
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+
+interface ActionLog {
+  user_id: string;
+  created_at: string;
+}
+
+export async function GET() {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session || sessionData.session.user.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: profiles, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, email, role, name");
+    if (profileError) throw profileError;
+
+    const { data: actions, error: actionsError } = await supabase
+      .from("user_activity")
+      .select("user_id, created_at");
+    if (actionsError) throw actionsError;
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const filteredActions = (actions as ActionLog[]).filter((action) => {
+      return new Date(action.created_at) >= thirtyDaysAgo;
+    });
+
+    const actionsMap: Record<string, number> = {};
+    filteredActions.forEach((action) => {
+      actionsMap[action.user_id] = (actionsMap[action.user_id] || 0) + 1;
+    });
+
+    const result = (profiles || []).map((p: any) => ({
+      ...p,
+      actionsCount: actionsMap[p.id] || 0,
+    }));
+
+    return NextResponse.json(result);
+  } catch (error: any) {
+    console.error("Erreur GET /api/admin/users-activity:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+
+===== route.ts =====
+Chemin : ./src/app/api/admin/users-activity/[userId]/route.ts
+// src/app/api/admin/users-activity/[userId]/route.ts
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+
+export async function GET(
+  request: Request,
+  { params }: { params: { userId: string } }
+) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    // Vérifier qu'on est admin
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session || sessionData.session.user.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const THIRTY_DAYS_AGO = new Date();
+    THIRTY_DAYS_AGO.setDate(THIRTY_DAYS_AGO.getDate() - 30);
+
+    const { data: logs, error: logsError } = await supabase
+      .from("user_activity")
+      .select("id, action_type, details, created_at")
+      .eq("user_id", params.userId)
+      .gte("created_at", THIRTY_DAYS_AGO.toISOString())
+      .order("created_at", { ascending: false });
+
+    if (logsError) throw logsError;
+
+    return NextResponse.json(logs);
+  } catch (error: any) {
+    console.error("Erreur GET /api/admin/users-activity/[userId]:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
 
 
@@ -2232,6 +3288,36 @@ export async function GET() {
 
 
 ===== route.ts =====
+Chemin : ./src/app/api/status/[status]/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_KEY!
+);
+
+export async function GET(req: NextRequest, { params }: { params: { status: string } }) {
+  const { status } = params;
+
+  if (!status) {
+    return NextResponse.json({ error: "Status is required" }, { status: 400 });
+  }
+
+  const { data, error } = await supabase
+    .from("videos")
+    .select("*")
+    .eq("progress_status", status);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(data);
+}
+
+
+===== route.ts =====
 Chemin : ./src/app/api/performance/route.ts
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse } from "next/server";
@@ -2381,7 +3467,7 @@ Chemin : ./src/app/login/page.tsx
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { createPagesBrowserClient } from "@supabase/auth-helpers-nextjs";
 import toast, { Toaster } from "react-hot-toast";
 
 export default function LoginPage() {
@@ -2389,7 +3475,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
   const router = useRouter();
+  const supabase = createPagesBrowserClient(); // si tu utilises ce helper
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2397,28 +3485,35 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const result = await signIn("credentials", {
+      // Remplace l'appel NextAuth par Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        redirect: false, // nous gérons la redirection nous-mêmes
       });
 
-      console.log("Résultat de signIn:", result);
+      console.log("SignInWithPassword result:", data, error);
 
-      if (result?.error) {
-        toast.error(result.error);
-        setErrorMsg(result.error);
-      } else if (result?.ok) {
-        router.push("/dashboard");
-      } else {
-        // Cas non prévu
-        toast.error("Connexion échouée");
+      if (error) {
+        // Erreur Supabase (identifiants invalides, etc.)
+        toast.error(error.message);
+        setErrorMsg(error.message);
+      } else if (!data.user) {
+        // Cas improbable : pas d'erreur mais pas de user ?
+        toast.error("Connexion échouée (aucun user)");
         setErrorMsg("Connexion échouée");
+      } else {
+        // Connexion OK : on redirige
+        router.push("/dashboard");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur de connexion:", error);
-      toast.error("Une erreur est survenue lors de la connexion");
-      setErrorMsg("Une erreur est survenue lors de la connexion");
+      if (error instanceof Error) {
+        toast.error(error.message);
+        setErrorMsg(error.message);
+      } else {
+        toast.error("Une erreur inconnue est survenue lors de la connexion");
+        setErrorMsg("Une erreur inconnue est survenue lors de la connexion");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -2433,6 +3528,7 @@ export default function LoginPage() {
       >
         <h2 className="text-2xl font-semibold mb-6">Connexion</h2>
         {errorMsg && <p className="text-red-500 mb-4">{errorMsg}</p>}
+
         <div className="mb-4">
           <label htmlFor="email" className="block mb-2 text-sm font-medium">
             Email
@@ -2447,6 +3543,7 @@ export default function LoginPage() {
             disabled={isLoading}
           />
         </div>
+
         <div className="mb-6">
           <label htmlFor="password" className="block mb-2 text-sm font-medium">
             Mot de passe
@@ -2461,6 +3558,7 @@ export default function LoginPage() {
             disabled={isLoading}
           />
         </div>
+
         <button
           type="submit"
           disabled={isLoading}
@@ -2479,10 +3577,10 @@ Chemin : ./src/app/dashboard/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import CreateCategoryModal from "@/components/CreateCategoryModal";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface CategoryWithCounts {
   id: number;
@@ -2505,17 +3603,17 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+
   const supabase = createClientComponentClient();
   const router = useRouter();
 
   const fetchCategories = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Récupérer les catégories et leurs vidéos associées
       const { data, error } = await supabase
         .from("video_categories")
         .select(`
-          id, 
+          id,
           identifier,
           title,
           category_videos (
@@ -2526,10 +3624,8 @@ export default function DashboardPage() {
 
       if (error) throw error;
 
-      // On s'assure que data est un tableau de VideoCategory
       const dataCategories = (data || []) as VideoCategory[];
 
-      // Calculer les compteurs par statut
       const mapped = dataCategories.map((cat) => {
         let pending_count = 0;
         let ready_to_publish_count = 0;
@@ -2569,17 +3665,29 @@ export default function DashboardPage() {
   }, [fetchCategories]);
 
   return (
-    <DashboardLayout>
-      <header className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-semibold">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      {/* --- Entête avec le titre et le bouton "Voir toutes les vidéos" --- */}
+      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl sm:text-3xl md:text-3xl font-bold tracking-tight text-white">
           Catégories de vidéos
         </h1>
+
+        {/* Bouton qui renvoie vers la page listant toutes les vidéos */}
+        <Link
+          href="/dashboard/videos"
+          className="
+            inline-block px-4 py-2 rounded-md
+            bg-[#424242] text-[#ECECEC]
+            hover:bg-[#171717] transition-colors duration-200
+            border border-[#424242]
+          "
+        >
+          Voir toutes les vidéos
+        </Link>
       </header>
 
       {isLoading ? (
-        <div className="text-center py-6">
-          Chargement en cours...
-        </div>
+        <div className="text-center py-6">Chargement en cours...</div>
       ) : (
         <>
           {error && (
@@ -2589,15 +3697,26 @@ export default function DashboardPage() {
           )}
 
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Carte pour ajouter une nouvelle catégorie */}
+            {/* Carte pour créer une nouvelle catégorie */}
             <div
               onClick={() => setIsCreateModalOpen(true)}
-              className="bg-[#171717] p-5 md:p-6 rounded-lg border border-dashed border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer flex flex-col items-center justify-center hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+              className="
+                bg-[#171717]
+                p-4 sm:p-6
+                rounded-lg
+                border border-dashed border-[#424242]
+                transition-all duration-200
+                cursor-pointer
+                flex flex-col items-center justify-center
+                hover:shadow-md
+                md:hover:scale-[1.01]
+                active:scale-[0.99]
+              "
             >
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-[#424242] rounded-full flex items-center justify-center mb-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#424242] rounded-full flex items-center justify-center mb-3 text-xl text-white">
                 +
               </div>
-              <p className="text-center text-gray-400 text-sm md:text-base">
+              <p className="text-center text-gray-400 text-sm sm:text-base">
                 Créer une nouvelle catégorie
               </p>
             </div>
@@ -2606,22 +3725,34 @@ export default function DashboardPage() {
             {categories.map((category, index) => (
               <div
                 key={category.id}
-                onClick={() => router.push(`/dashboard/categories/${category.id}`)}
-                className="bg-[#171717] p-5 md:p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+                onClick={() =>
+                  router.push(`/dashboard/categories/${category.id}`)
+                }
+                className="
+                  bg-[#171717]
+                  p-4 sm:p-6
+                  rounded-lg
+                  border border-[#424242]
+                  transition-all duration-200
+                  cursor-pointer
+                  hover:shadow-md
+                  md:hover:scale-[1.01]
+                  active:scale-[0.99]
+                "
                 style={{ animationDelay: `${index * 50}ms` }}
               >
-                <div className="flex items-center mb-3">
-                  <span className="text-lg md:text-xl font-medium text-[#424242]">
+                <div className="flex items-center mb-2 sm:mb-3">
+                  <span className="text-base sm:text-lg md:text-xl font-medium text-[#424242]">
                     {category.identifier}
                   </span>
-                  <span className="mx-2 text-lg md:text-xl font-medium text-[#424242]">
+                  <span className="mx-2 text-base sm:text-lg md:text-xl font-medium text-[#424242]">
                     |
                   </span>
-                  <h3 className="text-lg md:text-xl font-medium truncate">
+                  <h3 className="text-base sm:text-lg md:text-xl font-medium truncate">
                     {category.title}
                   </h3>
                 </div>
-                <div className="flex flex-col text-xs md:text-sm text-gray-400 gap-1">
+                <div className="flex flex-col text-xs sm:text-sm text-gray-400 gap-1">
                   <span>{category.pending_count} en cours</span>
                   <span>{category.ready_to_publish_count} prêtes</span>
                   <span>{category.finished_count} terminées</span>
@@ -2637,52 +3768,550 @@ export default function DashboardPage() {
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={fetchCategories}
       />
-    </DashboardLayout>
+    </div>
+  );
+}
+
+
+===== page.tsx =====
+Chemin : ./src/app/dashboard/profile/page.tsx
+// src/app/dashboard/profile/page.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import { useUser } from "@supabase/auth-helpers-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useRouter } from "next/navigation";
+
+export default function ProfilePage() {
+  const { user } = useUser();
+  const supabase = createClientComponentClient();
+  const [profile, setProfile] = useState<{
+    name: string | null;
+    email: string;
+    role: string;
+    created_at: string;
+  } | null>(null);
+  const [name, setName] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user) {
+      (async () => {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("name, email, role, created_at")
+          .eq("id", user.id)
+          .single();
+        if (error) {
+          console.error("Erreur lors de la récupération du profil :", error);
+        } else if (data) {
+          setProfile(data);
+          setName(data.name || "");
+        }
+      })();
+    }
+  }, [user, supabase]);
+
+  const handleUpdateName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage("");
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ name })
+        .eq("id", user?.id);
+      if (error) throw error;
+      setMessage("Nom mis à jour !");
+      setProfile((prev) => (prev ? { ...prev, name } : prev));
+    } catch (err) {
+      console.error("Erreur lors de la mise à jour du nom :", err);
+      setMessage("Erreur lors de la mise à jour du nom.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage("");
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (error) throw error;
+      setMessage("Mot de passe mis à jour !");
+      setNewPassword("");
+    } catch (err) {
+      console.error("Erreur lors de la mise à jour du mot de passe :", err);
+      setMessage("Erreur lors de la mise à jour du mot de passe.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#212121] text-[#ECECEC] flex items-center justify-center p-4">
+      <div className="w-full max-w-md p-8 bg-[#171717] rounded-lg shadow-xl border border-[#424242]">
+        <h2 className="text-2xl font-semibold mb-6">Mon Profil</h2>
+        {profile && (
+          <div className="mb-6 p-4 bg-[#212121] rounded border border-[#424242]">
+            <p className="mb-2">
+              <strong>Email :</strong> {profile.email}
+            </p>
+            <p className="mb-2">
+              <strong>Rôle :</strong> {profile.role}
+            </p>
+            <p className="mb-2">
+              <strong>Date d'inscription :</strong>{" "}
+              {new Date(profile.created_at).toLocaleDateString()}
+            </p>
+          </div>
+        )}
+        {message && (
+          <div className="mb-4 p-3 rounded bg-green-500/10 border border-green-500 text-green-500">
+            {message}
+          </div>
+        )}
+        <form onSubmit={handleUpdateName} className="mb-8">
+          <label className="block mb-2">Nom d'utilisateur</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Entrez votre nom d'utilisateur..."
+            className="w-full p-3 bg-[#212121] border border-[#424242] rounded"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-4 w-full p-3 bg-[#424242] text-[#ECECEC] rounded hover:bg-[#171717] transition-colors"
+          >
+            Mettre à jour le nom
+          </button>
+        </form>
+        <form onSubmit={handleUpdatePassword}>
+          <label className="block mb-2">Nouveau mot de passe</label>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Entrez votre nouveau mot de passe..."
+            className="w-full p-3 bg-[#212121] border border-[#424242] rounded"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-4 w-full p-3 bg-[#424242] text-[#ECECEC] rounded hover:bg-[#171717] transition-colors"
+          >
+            Mettre à jour le mot de passe
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
 
 
 ===== page.tsx =====
 Chemin : ./src/app/dashboard/admin/page.tsx
+// src/app/dashboard/admin/page.tsx
 "use client";
 
-import { useEffect } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
-import { useSession, signOut } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { useUser } from "@supabase/auth-helpers-react";
 import { useRouter } from "next/navigation";
 
+interface Profile {
+  id: string;
+  email: string;
+  role: string;
+  name?: string;
+  actionsCount?: number;
+}
+
 export default function AdminPage() {
-  const { data: session, status } = useSession();
+  const { user } = useUser();
   const router = useRouter();
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>("");
 
   useEffect(() => {
-    if (status !== "loading" && session?.user?.role !== "admin") {
-      // Redirige vers le dashboard si l'utilisateur n'est pas admin
+    if (!user || user.role !== "admin") {
       router.push("/dashboard");
     }
-  }, [session, status, router]);
+  }, [user, router]);
 
-  if (status === "loading") {
-    return <div>Chargement...</div>;
+  useEffect(() => {
+    async function fetchUsersActivity() {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/admin/users-activity", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          throw new Error("Erreur lors du fetch des activités utilisateurs");
+        }
+        const data = await res.json();
+        setProfiles(data);
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message || "Erreur inconnue");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchUsersActivity();
+  }, []);
+
+  if (loading) {
+    return <div className="p-4 text-gray-200">Chargement...</div>;
+  }
+  if (error) {
+    return (
+      <div className="p-4 text-red-400 border border-red-500 rounded">
+        {error}
+      </div>
+    );
+  }
+  return (
+    <div className="p-4 text-[#ECECEC]">
+      <h1 className="text-2xl font-semibold mb-4">Administration</h1>
+      <p className="mb-6">Suivi de l'activité des employés (30 derniers jours)</p>
+      <table className="w-full border border-gray-600">
+        <thead className="bg-[#2a2a2a]">
+          <tr>
+            <th className="px-3 py-2 text-left">Utilisateur</th>
+            <th className="px-3 py-2 text-left">Email</th>
+            <th className="px-3 py-2 text-left">Rôle</th>
+            <th className="px-3 py-2 text-right">Actions (30j)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {profiles.map((p) => (
+            <tr
+              key={p.id}
+              className="hover:bg-[#212121] cursor-pointer"
+              onClick={() => router.push(`/dashboard/admin/user/${p.id}`)}
+            >
+              <td className="px-3 py-2">{p.name || "Sans Nom"}</td>
+              <td className="px-3 py-2">{p.email}</td>
+              <td className="px-3 py-2">{p.role}</td>
+              <td className="px-3 py-2 text-right">{p.actionsCount ?? 0}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+
+===== page.tsx =====
+Chemin : ./src/app/dashboard/admin/user/[userId]/page.tsx
+// src/app/dashboard/admin/user/[userId]/page.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSearchParams, useRouter, useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+
+interface Activity {
+  id: number;
+  action_type: string;
+  details: string;
+  created_at: string;
+}
+
+export default function UserActivityPage() {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const { userId } = useParams();
+  
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    // Vérification admin
+    if (session?.user?.role !== "admin") {
+      router.push("/dashboard");
+    }
+  }, [session, router]);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/admin/users-activity/${userId}`);
+        if (!res.ok) {
+          throw new Error("Impossible de charger l'historique utilisateur");
+        }
+        const data = await res.json();
+        setActivities(data);
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message || "Erreur");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [userId]);
+
+  if (loading) return <div className="p-4 text-gray-200">Chargement...</div>;
+  if (error) {
+    return (
+      <div className="p-4 text-red-400 border border-red-500 rounded">
+        {error}
+      </div>
+    );
   }
 
   return (
-    <DashboardLayout>
-      <header className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-semibold">Administration</h1>
-      </header>
-      <div className="p-4 bg-[#171717] rounded-lg">
-        <p className="text-lg">
-          Bienvenue dans l&apos;espace administration. Vous pouvez gérer les utilisateurs et effectuer des actions sensibles ici.
-        </p>
+    <div className="p-4 text-[#ECECEC]">
+      <h1 className="text-2xl font-semibold mb-4">Historique de l'utilisateur {userId}</h1>
+      {activities.length === 0 && (
+        <div className="text-gray-400">Aucune activité récente.</div>
+      )}
+      {activities.map((act) => (
+        <div key={act.id} className="mb-3 p-3 bg-[#212121] rounded border border-[#424242]">
+          <p className="text-sm text-gray-300">
+            <strong>Action :</strong> {act.action_type}
+          </p>
+          <p className="text-sm text-gray-300">
+            <strong>Détails :</strong> {act.details}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            {new Date(act.created_at).toLocaleString()}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+===== page.tsx =====
+Chemin : ./src/app/dashboard/videos/page.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import Link from "next/link";
+import { ArrowLeft } from "react-feather";
+
+interface VideoRow {
+  id: number;
+  title: string;
+  category_id: number;
+  production_status: string;
+  created_at: string;
+  updated_at: string;
+  // etc. si besoin
+}
+
+interface Category {
+  id: number;
+  identifier: string;
+  title: string;
+}
+
+export default function VideosListingPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const supabase = createClientComponentClient();
+
+  // On récupère la valeur initiale de status (ex. "À monter") depuis l'URL
+  const initialStatus = searchParams.get("status") || "";
+
+  // States pour le filtre
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
+  const [selectedCategory, setSelectedCategory] = useState<string>(""); // "" => toutes catégories
+  const [searchQuery, setSearchQuery] = useState("");
+  const [videos, setVideos] = useState<VideoRow[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // 1. Charger la liste de catégories pour le dropdown
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("video_categories")
+          .select("id, identifier, title")
+          .order("identifier");
+
+        if (error) throw error;
+        setCategories(data || []);
+      } catch (err) {
+        console.error("Erreur fetch categories:", err);
+      }
+    })();
+  }, [supabase]);
+
+  // 2. Charger la liste de vidéos (à chaque fois que le user modifie un filtre)
+  //    On relance la requête quand [statusFilter, selectedCategory, searchQuery] changent
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        let query = supabase
+          .from("category_videos")
+          .select("*") // tu peux faire .select("id, ... video_details(...)") si besoin
+          .order("updated_at", { ascending: false });
+
+        // Filtre par statut si statusFilter n'est pas vide
+        if (statusFilter) {
+          query = query.eq("production_status", statusFilter);
+        }
+
+        // Filtre par catégorie
+        const catId = parseInt(selectedCategory, 10);
+        if (!isNaN(catId) && catId > 0) {
+          query = query.eq("category_id", catId);
+        }
+
+        // Recherche par titre
+        if (searchQuery.trim()) {
+          query = query.ilike("title", `%${searchQuery.trim()}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        setVideos(data as VideoRow[]);
+      } catch (err: any) {
+        console.error("Erreur fetch videos:", err);
+        setError("Impossible de récupérer la liste des vidéos");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [supabase, statusFilter, selectedCategory, searchQuery]);
+
+  // Handler si on veut rediriger ou quelque chose sur "back"
+  const handleBack = () => {
+    router.back();
+  };
+
+  return (
+    <div className="p-4 md:p-6 text-gray-200 min-h-screen">
+      {/* Barre de navigation "retour" */}
+      <div className="flex items-center gap-2 mb-4">
         <button
-          onClick={() => signOut()}
-          className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg"
+          onClick={handleBack}
+          className="flex items-center gap-1.5 text-[#ECECEC] hover:text-gray-300 transition-colors"
         >
-          Déconnexion
+          <ArrowLeft size={18} />
+          Retour
         </button>
+        <h1 className="text-xl font-semibold ml-4">
+          Toutes les vidéos {statusFilter ? `(${statusFilter})` : ""}
+        </h1>
       </div>
-    </DashboardLayout>
+
+      {/* Filtres */}
+      <div className="bg-[#1a1a1a] p-4 rounded-lg border border-[#2a2a2a] mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Filtre par catégorie */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Filtrer par catégorie
+            </label>
+            <select
+              className="w-full bg-[#212121] border border-[#424242] rounded px-2 py-1"
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+            >
+              <option value="">Toutes catégories</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.identifier} - {cat.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtre par statut (optionnel si on veut laisser l'user en choisir un) */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Statut
+            </label>
+            <select
+              className="w-full bg-[#212121] border border-[#424242] rounded px-2 py-1"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">Tous statuts</option>
+              <option value="À monter">À monter</option>
+              <option value="En cours">En cours</option>
+              <option value="Prêt à publier">Prêt à publier</option>
+              <option value="Terminé">Terminé</option>
+            </select>
+          </div>
+
+          {/* Recherche par titre */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              Rechercher
+            </label>
+            <input
+              className="w-full bg-[#212121] border border-[#424242] rounded px-2 py-1"
+              type="text"
+              placeholder="Rechercher par titre..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Liste de vidéos */}
+      {loading && <div>Chargement des vidéos...</div>}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500 text-red-500 p-3 rounded">
+          {error}
+        </div>
+      )}
+      {!loading && !error && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {videos.length === 0 ? (
+            <div className="text-gray-400 col-span-full">
+              Aucune vidéo ne correspond à ces filtres.
+            </div>
+          ) : (
+            videos.map((video) => (
+              <Link
+                key={video.id}
+                href={`/dashboard/videos/${video.id}`}
+                className="
+                  block bg-[#171717] p-4 rounded-lg border border-[#424242]
+                  hover:border-[#ECECEC] transition-colors duration-200
+                "
+              >
+                <h2 className="text-lg font-bold mb-2">{video.title}</h2>
+                <p className="text-sm text-gray-400">
+                  Statut: {video.production_status}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Mise à jour: {new Date(video.updated_at).toLocaleDateString()}
+                </p>
+              </Link>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2693,6 +4322,7 @@ Chemin : ./src/app/dashboard/videos/[id]/page.tsx
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import {
   fetchVideoDetails,
@@ -2703,7 +4333,6 @@ import {
   updateStatus,
 } from "../../../../services/videoService";
 import { Video, VIDEO_STATUS } from "../../../../types/video";
-// L'import de STATUS_STEPS a été supprimé car il n'est pas utilisé.
 import EditableItem from "../../../../components/EditableItem";
 import { StatusProgress } from "../../../../components/StatusProgress";
 import { ArrowLeft, Trash2 } from "react-feather";
@@ -2748,20 +4377,19 @@ interface Comment {
 }
 
 export default function VideoPage({ params }: { params: { id: string } }) {
+  const { data: session } = useSession();
   const [video, setVideo] = useState<Video | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isStatusChanging, setIsStatusChanging] = useState<boolean>(false);
-  const router = useRouter();
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [loadingComments, setLoadingComments] = useState(true);
   const [errorComments, setErrorComments] = useState("");
-
-  // État pour la suppression
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
+
+  const router = useRouter();
 
   useEffect(() => {
     const loadVideo = async () => {
@@ -2770,11 +4398,11 @@ export default function VideoPage({ params }: { params: { id: string } }) {
         setVideo(data);
       } catch (err: unknown) {
         console.error("Erreur lors du chargement de la vidéo :", err);
-        if (err instanceof Error) {
-          setError("Impossible de charger les détails de la vidéo");
-        } else {
-          setError("Erreur inconnue lors du chargement de la vidéo");
-        }
+        setError(
+          err instanceof Error
+            ? "Impossible de charger les détails de la vidéo"
+            : "Erreur inconnue lors du chargement de la vidéo"
+        );
       } finally {
         setIsLoading(false);
       }
@@ -2782,24 +4410,23 @@ export default function VideoPage({ params }: { params: { id: string } }) {
     loadVideo();
   }, [params.id]);
 
-  // Mise à jour du titre
   const handleTitleUpdate = async (newTitle: string) => {
     const trimmed = newTitle.trim();
     if (!trimmed) return;
     try {
-      await updateTitle(params.id, trimmed);
+      if (!session?.user?.id) throw new Error("Utilisateur non authentifié");
+      await updateTitle(session.user.id, params.id, trimmed);
       setVideo((prev) => (prev ? { ...prev, title: trimmed } : null));
     } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour du titre :", err);
-      if (err instanceof Error) {
-        setError("Impossible de mettre à jour le titre");
-      } else {
-        setError("Erreur inconnue lors de la mise à jour du titre");
-      }
+      setError(
+        err instanceof Error
+          ? "Impossible de mettre à jour le titre"
+          : "Erreur inconnue lors de la mise à jour du titre"
+      );
     }
   };
 
-  // Mise à jour de la description
   const handleDescriptionUpdate = async (newDescription: string) => {
     try {
       await updateDescription(params.id, newDescription);
@@ -2808,15 +4435,14 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       );
     } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour de la description :", err);
-      if (err instanceof Error) {
-        setError("Impossible de mettre à jour la description");
-      } else {
-        setError("Erreur inconnue lors de la mise à jour de la description");
-      }
+      setError(
+        err instanceof Error
+          ? "Impossible de mettre à jour la description"
+          : "Erreur inconnue lors de la mise à jour de la description"
+      );
     }
   };
 
-  // Mise à jour des instructions
   const handleInstructionsUpdate = async (newInstructions: string) => {
     try {
       await updateInstructions(params.id, newInstructions);
@@ -2825,15 +4451,14 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       );
     } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour des instructions :", err);
-      if (err instanceof Error) {
-        setError("Impossible de mettre à jour les instructions");
-      } else {
-        setError("Erreur inconnue lors de la mise à jour des instructions");
-      }
+      setError(
+        err instanceof Error
+          ? "Impossible de mettre à jour les instructions"
+          : "Erreur inconnue lors de la mise à jour des instructions"
+      );
     }
   };
 
-  // Mise à jour d'un lien (rush, vidéo montée, miniature)
   const handleLinkUpdate = async (
     newValue: string,
     dbField: "rush_link" | "video_link" | "miniature_link"
@@ -2843,15 +4468,14 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       setVideo((prev) => (prev ? { ...prev, [dbField]: newValue } : null));
     } catch (err: unknown) {
       console.error(`Erreur lors de la mise à jour du lien ${dbField} :`, err);
-      if (err instanceof Error) {
-        setError(`Impossible de mettre à jour le lien ${dbField}`);
-      } else {
-        setError("Erreur inconnue lors de la mise à jour du lien");
-      }
+      setError(
+        err instanceof Error
+          ? `Impossible de mettre à jour le lien ${dbField}`
+          : "Erreur inconnue lors de la mise à jour du lien"
+      );
     }
   };
 
-  // Mise à jour du statut avec gestion de toast en cas d'erreur
   const handleStatusUpdate = async (
     newStatus: (typeof VIDEO_STATUS)[keyof typeof VIDEO_STATUS]
   ) => {
@@ -2874,32 +4498,6 @@ export default function VideoPage({ params }: { params: { id: string } }) {
     }
   };
 
-  // Suppression de la vidéo
-  const handleDeleteVideo = async () => {
-    setIsDeleting(true);
-    setDeleteError("");
-    try {
-      const response = await fetch(`/api/videos/${params.id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Échec de la suppression");
-      }
-      router.push("/dashboard");
-    } catch (err: unknown) {
-      console.error("Erreur lors de la suppression de la vidéo :", err);
-      if (err instanceof Error) {
-        setDeleteError(err.message);
-      } else {
-        setDeleteError("Erreur inconnue lors de la suppression");
-      }
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteConfirm(false);
-    }
-  };
-
   const fetchComments = useCallback(async () => {
     try {
       const response = await fetch(`/api/videos/${params.id}/comments`);
@@ -2910,11 +4508,11 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       setComments(data);
     } catch (err: unknown) {
       console.error("Erreur lors du chargement des commentaires", err);
-      if (err instanceof Error) {
-        setErrorComments("Impossible de charger les commentaires");
-      } else {
-        setErrorComments("Erreur inconnue lors du chargement des commentaires");
-      }
+      setErrorComments(
+        err instanceof Error
+          ? "Impossible de charger les commentaires"
+          : "Erreur inconnue lors du chargement des commentaires"
+      );
     } finally {
       setLoadingComments(false);
     }
@@ -2926,7 +4524,6 @@ export default function VideoPage({ params }: { params: { id: string } }) {
     }
   }, [video, fetchComments]);
 
-  // Fonction pour poster un commentaire
   const postComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
@@ -2939,12 +4536,35 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       if (!response.ok) {
         throw new Error("Erreur lors de l'envoi du commentaire");
       }
-      // Rafraîchir la liste des commentaires
       setNewComment("");
       fetchComments();
     } catch (err: unknown) {
       console.error("Erreur lors de l'ajout du commentaire", err);
       alert("Impossible d'ajouter le commentaire");
+    }
+  };
+
+  const handleDeleteVideo = async () => {
+    try {
+      setIsDeleting(true);
+      const response = await fetch(`/api/videos/${params.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Échec de la suppression");
+      }
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      console.error("Erreur lors de la suppression de la vidéo :", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de supprimer la vidéo"
+      );
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -2966,7 +4586,6 @@ export default function VideoPage({ params }: { params: { id: string } }) {
   return (
     <div className="min-h-screen bg-[#212121] text-[#ECECEC]">
       <div className="container mx-auto p-4 md:p-8 max-w-4xl">
-        {/* ------------------ Header (Bouton Retour + Titre en gros + Statut + Bouton Supprimer) ------------------ */}
         <header className="mb-6">
           <button
             onClick={() => router.back()}
@@ -3024,16 +4643,14 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-black/20 text-red-500 rounded-md transition-colors duration-200 text-sm"
-                disabled={isDeleting}
               >
                 <Trash2 size={16} />
-                {isDeleting ? "Suppression..." : "Supprimer"}
+                Supprimer
               </button>
             </div>
           </div>
         </header>
 
-        {/* ------------------ Contenu principal ------------------ */}
         <main className="grid gap-6">
           <Section title="Contenu de la vidéo">
             <EditableItem
@@ -3065,9 +4682,7 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               label="Montage final"
               value={video.video_link || ""}
               placeholder="Ajouter le lien de la vidéo montée"
-              onSave={(newVal: string) =>
-                handleLinkUpdate(newVal, "video_link")
-              }
+              onSave={(newVal: string) => handleLinkUpdate(newVal, "video_link")}
               isLink={true}
             />
           </Section>
@@ -3084,9 +4699,7 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               label="Fichier miniature"
               value={video.miniature_link || ""}
               placeholder="Ajouter le lien de la miniature"
-              onSave={(newVal: string) =>
-                handleLinkUpdate(newVal, "miniature_link")
-              }
+              onSave={(newVal: string) => handleLinkUpdate(newVal, "miniature_link")}
               isLink={true}
             />
           </Section>
@@ -3116,8 +4729,6 @@ export default function VideoPage({ params }: { params: { id: string } }) {
             <h2 className="text-lg md:text-xl font-medium mb-4">
               Commentaires internes
             </h2>
-
-            {/* Formulaire pour ajouter un commentaire */}
             <form onSubmit={postComment} className="mb-4">
               <textarea
                 value={newComment}
@@ -3133,8 +4744,6 @@ export default function VideoPage({ params }: { params: { id: string } }) {
                 Ajouter
               </button>
             </form>
-
-            {/* Liste des commentaires */}
             {loadingComments ? (
               <div>Chargement des commentaires...</div>
             ) : errorComments ? (
@@ -3154,69 +4763,33 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               </ul>
             )}
           </section>
-
-          {deleteError && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500 text-red-500 rounded">
-              {deleteError}
-            </div>
-          )}
         </main>
       </div>
 
-      {/* ------------------ Modale de confirmation de suppression ------------------ */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#171717] p-6 rounded-lg shadow-xl max-w-md w-full border border-gray-200 dark:border-[#424242]">
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-[#ECECEC]">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#171717] p-6 rounded-lg shadow-xl border border-[#424242] max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4 text-[#ECECEC]">
               Confirmer la suppression
             </h2>
-            <p className="mb-6 text-gray-700 dark:text-gray-300">
+            <p className="mb-6 text-gray-300">
               Êtes-vous sûr de vouloir supprimer la vidéo{" "}
               <strong>{video.title}</strong> ?
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-[#424242] dark:hover:bg-[#535353] text-gray-800 dark:text-[#ECECEC] rounded-md transition-colors duration-200 text-sm"
+                className="px-4 py-2 bg-gray-300 text-gray-900 rounded hover:bg-gray-400 transition-colors"
                 disabled={isDeleting}
               >
                 Annuler
               </button>
               <button
                 onClick={handleDeleteVideo}
-                className="px-3 py-1.5 flex items-center gap-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-md transition-colors duration-200 text-sm"
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                 disabled={isDeleting}
               >
-                {isDeleting ? (
-                  <>
-                    <svg
-                      className="animate-spin h-4 w-4"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Suppression...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={16} />
-                    Confirmer
-                  </>
-                )}
+                {isDeleting ? "Suppression..." : "Supprimer"}
               </button>
             </div>
           </div>
@@ -3228,27 +4801,91 @@ export default function VideoPage({ params }: { params: { id: string } }) {
 
 
 ===== page.tsx =====
+Chemin : ./src/app/dashboard/videos/status/[status]/page.tsx
+// "use client";
+
+// import { useEffect, useState } from "react";
+// import Link from "next/link";
+// import { createClient } from "@supabase/supabase-js";
+
+// const supabase = createClient(
+//   process.env.NEXT_PUBLIC_SUPABASE_URL!,
+//   process.env.NEXT_PUBLIC_SUPABASE_KEY!
+// );
+
+// export default function VideosByStatus({ params }: { params: { status: string } }) {
+//   const { status } = params;
+//   const [videos, setVideos] = useState<any[]>([]);
+//   const [loading, setLoading] = useState(true);
+
+//   useEffect(() => {
+//     async function fetchVideos() {
+//       if (!status) return;
+//       const { data, error } = await supabase
+//         .from("videos")
+//         .select("*")
+//         .eq("progress_status", status);
+
+//       if (error) {
+//         console.error("Error fetching videos:", error.message);
+//       } else {
+//         setVideos(data);
+//       }
+//       setLoading(false);
+//     }
+
+//     fetchVideos();
+//   }, [status]);
+
+//   if (loading) return <div className="text-center py-10">Chargement...</div>;
+
+//   return (
+//     <div className="container mx-auto p-6">
+//       <Link href="/dashboard/stats">
+//         <a className="text-blue-500 underline">← Retour aux statistiques</a>
+//       </Link>
+//       <h1 className="text-2xl font-bold my-4">Vidéos avec le statut : {status}</h1>
+
+//       {videos.length === 0 ? (
+//         <p className="text-gray-600">Aucune vidéo trouvée.</p>
+//       ) : (
+//         <ul className="divide-y divide-gray-300">
+//           {videos.map((video) => (
+//             <li key={video.id} className="py-2">
+//               <Link href={`/dashboard/videos/${video.id}`}>
+//                 <a className="text-blue-600 hover:underline">{video.title || `Vidéo ${video.id}`}</a>
+//               </Link>
+//             </li>
+//           ))}
+//         </ul>
+//       )}
+//     </div>
+//   );
+// }
+
+
+===== page.tsx =====
 Chemin : ./src/app/dashboard/categories/[id]/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Trash2, ArrowLeft } from "react-feather";
+import { Trash2, ArrowLeft, Archive, Inbox } from "react-feather";
 import CreateVideoModal from "@/components/CreateVideoModal";
 
 interface Video {
   id: number;
   title: string;
-  production_status: string; // Ex. "À monter", "En cours", "Prêt à publier", "Terminé"
+  production_status: string;
   created_at: string;
   updated_at: string;
-  identifier: number; // Identifiant numérique de la vidéo
+  identifier: number;
 }
 
 interface Category {
   id: number;
-  identifier: string; // Par ex. "A"
+  identifier: string;
   title: string;
   videos: Video[];
 }
@@ -3262,12 +4899,12 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const router = useRouter();
   const supabase = createClientComponentClient();
 
   useEffect(() => {
     fetchCategoryDetails();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
   useEffect(() => {
@@ -3278,7 +4915,6 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
 
   const fetchCategoryDetails = async () => {
     try {
-      // 1. Récupérer la catégorie
       const { data: categoryData, error: categoryError } = await supabase
         .from("video_categories")
         .select("*")
@@ -3286,7 +4922,6 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
         .single();
       if (categoryError) throw categoryError;
 
-      // 2. Récupérer les vidéos associées à la catégorie
       const { data: videosData, error: videosError } = await supabase
         .from("category_videos")
         .select("id, identifier, title, production_status, created_at, updated_at")
@@ -3294,7 +4929,6 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
         .order("id", { ascending: true });
       if (videosError) throw videosError;
 
-      // 3. Mettre à jour le state local
       setCategory({
         ...categoryData,
         videos: videosData || [],
@@ -3342,26 +4976,6 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
     }
   };
 
-  // Fonctions pour l'affichage du statut
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "À monter":
-        return "bg-yellow-600";
-      case "En cours":
-        return "bg-blue-600";
-      case "Prêt à publier":
-        return "bg-green-600";
-      case "Terminé":
-        return "bg-purple-600";
-      default:
-        return "bg-[#424242]";
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    return status;
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#212121] text-[#ECECEC] flex items-center justify-center">
@@ -3388,131 +5002,69 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
     );
   }
 
+  // Séparation des vidéos actives et archivées
+  const activeVideos = category.videos.filter(video => video.production_status !== "Terminé");
+  const archivedVideos = category.videos.filter(video => video.production_status === "Terminé");
+  const hasArchivedVideos = archivedVideos.length > 0;
+
   return (
     <div className="min-h-screen bg-[#212121] text-[#ECECEC]">
       <div className="max-w-6xl mx-auto p-8">
-        {/* En-tête de la catégorie */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <button
-              onClick={() => router.back()}
-              className="text-[#ECECEC] hover:text-gray-300 transition-colors duration-200 flex items-center gap-1.5"
-            >
-              <ArrowLeft size={16} /> Retour
-            </button>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-black/20 text-red-500 rounded-md transition-colors duration-200 text-sm"
-              disabled={isDeleting}
-            >
-              <Trash2 size={16} />
-              {isDeleting ? "Suppression..." : "Supprimer"}
-            </button>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-semibold flex items-center gap-2 md:gap-4 flex-wrap w-full">
-            <span className="break-all">{category.identifier}</span>
-            {editingTitle ? (
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleTitleUpdate();
-                    }
-                  }}
-                  className="bg-transparent border-b border-[#424242] focus:border-[#ECECEC] outline-none px-1 w-full sm:w-auto min-w-0"
-                  autoFocus
-                />
-                <button
-                  onClick={handleTitleUpdate}
-                  className="text-sm px-2 py-1 bg-[#424242] rounded flex items-center gap-1 whitespace-nowrap mt-2 sm:mt-0"
-                >
-                  Sauvegarder
-                </button>
-              </div>
-            ) : (
-              <span
-                onClick={() => setEditingTitle(true)}
-                className="cursor-pointer hover:text-gray-300 break-all"
-              >
-                {category.title}
-              </span>
-            )}
-          </h1>
+        {/* Barre du haut (retour + supprimer) */}
+        <div className="flex justify-between items-center mb-4">
+          <button
+            onClick={() => router.back()}
+            className="text-[#ECECEC] hover:text-gray-300 transition-colors duration-200 flex items-center gap-1.5"
+          >
+            <ArrowLeft size={16} /> Retour
+          </button>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-black/20 text-red-500 rounded-md transition-colors duration-200 text-sm"
+            disabled={isDeleting}
+          >
+            <Trash2 size={16} />
+            {isDeleting ? "Suppression..." : "Supprimer"}
+          </button>
         </div>
 
-        {/* Modale de confirmation de suppression */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-[#171717] p-6 rounded-lg shadow-xl max-w-md w-full border border-gray-200 dark:border-[#424242]">
-              <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-[#ECECEC]">
-                Confirmer la suppression
-              </h2>
-              <p className="mb-6 text-gray-700 dark:text-gray-300">
-                Êtes-vous sûr de vouloir supprimer la catégorie{" "}
-                <strong>{category.title}</strong> ?{" "}
-                {category.videos.length > 0 && (
-                  <span className="block mt-2 text-red-500 dark:text-red-400">
-                    Cette catégorie contient {category.videos.length} vidéo
-                    {category.videos.length > 1 ? "s" : ""} qui ne sera/seront
-                    plus associée(s) à aucune catégorie.
-                  </span>
-                )}
-              </p>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-[#424242] dark:hover:bg-[#535353] text-gray-800 dark:text-[#ECECEC] rounded-md transition-colors duration-200 text-sm"
-                  disabled={isDeleting}
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleDeleteCategory}
-                  className="px-3 py-1.5 flex items-center gap-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-md transition-colors duration-200 text-sm"
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? (
-                    <>
-                      <svg
-                        className="animate-spin h-4 w-4"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      Suppression...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 size={16} />
-                      Confirmer
-                    </>
-                  )}
-                </button>
-              </div>
+        {/* Titre de la catégorie (modifiable) */}
+        <h1 className="text-2xl md:text-3xl font-semibold flex items-center gap-2 flex-wrap">
+          <span className="break-all">{category.identifier} - </span>
+          {editingTitle ? (
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 mt-2">
+              <input
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleTitleUpdate();
+                  }
+                }}
+                className="bg-transparent border-b border-[#424242] focus:border-[#ECECEC] outline-none px-1 w-full sm:w-auto"
+                autoFocus
+              />
+              <button
+                onClick={handleTitleUpdate}
+                className="text-sm px-2 py-1 bg-[#424242] rounded flex items-center gap-1 whitespace-nowrap mt-2 sm:mt-0"
+              >
+                Sauvegarder
+              </button>
             </div>
-          </div>
-        )}
+          ) : (
+            <span
+              onClick={() => setEditingTitle(true)}
+              className="cursor-pointer hover:text-gray-300 break-all"
+            >
+              {category.title}
+            </span>
+          )}
+        </h1>
 
-        {/* Liste des vidéos */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Liste des vidéos actives */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
           {/* Carte spéciale pour ajouter une nouvelle vidéo */}
           <div
             onClick={() => setIsCreateModalOpen(true)}
@@ -3530,28 +5082,32 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
-          {/* Cartes des vidéos existantes */}
-          {category.videos.map((video) => {
-            // Construire l'identifiant complet : ex. "A-2"
+          {/* Cartes des vidéos actives */}
+          {activeVideos.map((video) => {
             const fullIdentifier = `${category.identifier}-${video.identifier}`;
             return (
               <div
                 key={video.id}
                 onClick={() => router.push(`/dashboard/videos/${video.id}`)}
-                className="relative bg-[#171717] p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-colors duration-200 cursor-pointer"
+                className="relative bg-[#171717] p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer"
               >
-                {/* Badge du statut */}
                 <div className="absolute top-2 right-2">
                   <span
-                    className={`px-2 py-1 rounded-full text-xs font-semibold text-white ${getStatusColor(
-                      video.production_status
-                    )}`}
+                    className={`px-2 py-1 rounded-full text-xs font-semibold text-white ${
+                      video.production_status === "À monter"
+                        ? "bg-yellow-600"
+                        : video.production_status === "En cours"
+                        ? "bg-blue-600"
+                        : video.production_status === "Prêt à publier"
+                        ? "bg-green-600"
+                        : "bg-[#424242]"
+                    }`}
                   >
-                    {getStatusText(video.production_status)}
+                    {video.production_status}
                   </span>
                 </div>
                 <div className="flex flex-col h-full">
-                  <h3 className="text-xl font-medium mb-2">
+                  <h3 className="text-xl font-medium mb-2 pr-24">
                     {fullIdentifier} {video.title}
                   </h3>
                   <div className="mt-auto text-sm text-gray-400">
@@ -3563,185 +5119,770 @@ export default function CategoryPage({ params }: { params: { id: string } }) {
             );
           })}
 
-          {category.videos.length === 0 && (
+          {activeVideos.length === 0 && category.videos.length > 0 ? (
+            <div className="col-span-full text-center py-12 text-gray-400">
+              Toutes les vidéos sont archivées
+            </div>
+          ) : activeVideos.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-400">
               Aucune vidéo dans cette catégorie
             </div>
-          )}
+          ) : null}
         </div>
 
-        {/* Modale de création d'une nouvelle vidéo */}
+        {/* Section des vidéos archivées (avec toggle) */}
+        {hasArchivedVideos && (
+          <div className="mt-12">
+            <button
+              onClick={() => setShowArchived(!showArchived)}
+              className="flex items-center gap-2 text-[#ECECEC] bg-[#2b2b2b] hover:bg-[#333] px-4 py-2 rounded-lg mb-4 transition-colors duration-200"
+            >
+              {showArchived ? <Inbox size={18} /> : <Archive size={18} />}
+              {showArchived ? "Masquer les vidéos terminées" : `Afficher les vidéos terminées (${archivedVideos.length})`}
+            </button>
+
+            {showArchived && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                {archivedVideos.map((video) => {
+                  const fullIdentifier = `${category.identifier}-${video.identifier}`;
+                  return (
+                    <div
+                      key={video.id}
+                      onClick={() => router.push(`/dashboard/videos/${video.id}`)}
+                      className="relative bg-[#171717] p-6 rounded-lg border border-[#333] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer opacity-75 hover:opacity-100"
+                    >
+                      <div className="absolute top-2 right-2">
+                        <span className="px-2 py-1 rounded-full text-xs font-semibold text-white bg-purple-600">
+                          {video.production_status}
+                        </span>
+                      </div>
+                      <div className="flex flex-col h-full">
+                        <h3 className="text-xl font-medium mb-2 pr-24">
+                          {fullIdentifier} {video.title}
+                        </h3>
+                        <div className="mt-auto text-sm text-gray-400">
+                          Dernière mise à jour :{" "}
+                          {new Date(video.updated_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Modale de création de vidéo */}
         <CreateVideoModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
           onSuccess={fetchCategoryDetails}
           categoryId={params.id}
-          categoryIdentifier={category.identifier} // Pour générer l'identifiant complet, ex. "A-1"
-          categoryTitle={category.title} // Pour afficher le nom complet de la catégorie
+          categoryIdentifier={category.identifier}
+          categoryTitle={category.title}
         />
       </div>
+
+      {/* Fenêtre de confirmation de suppression */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-[#171717] p-6 rounded-lg shadow-xl border border-[#424242] max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4 text-[#ECECEC]">
+              Confirmer la suppression
+            </h2>
+            <p className="text-gray-300 mb-6">
+              Êtes-vous sûr de vouloir supprimer la catégorie{" "}
+              <strong>{category.title}</strong> ?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-900 rounded hover:bg-gray-400 transition-colors"
+                disabled={isDeleting}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDeleteCategory}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Suppression..." : "Supprimer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-
-===== page.tsx =====
-Chemin : ./src/app/dashboard/alerts/page.tsx
-"use client";
-
-import { useState, useEffect } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
-
-interface Alert {
-  id: number;
-  title: string;
-  production_status: string;
-  updated_at: string;
-}
-
-export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const fetchAlerts = async () => {
-      try {
-        const response = await fetch("/api/alerts");
-        if (!response.ok) {
-          throw new Error("Erreur lors de la récupération des alertes");
-        }
-        const data = (await response.json()) as Alert[];
-        setAlerts(data);
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          console.error("Erreur lors du chargement des alertes", err);
-        } else {
-          console.error("Erreur lors du chargement des alertes", err);
-        }
-        setError("Impossible de charger les alertes");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAlerts();
-  }, []);
-
-  return (
-    <DashboardLayout>
-      <header className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-semibold">Alertes et Rappels</h1>
-      </header>
-      {isLoading ? (
-        <div>Chargement...</div>
-      ) : error ? (
-        <div className="text-red-500">{error}</div>
-      ) : alerts.length === 0 ? (
-        <div>Aucune alerte pour le moment.</div>
-      ) : (
-        <div className="space-y-4">
-          {alerts.map((alert) => (
-            <div key={alert.id} className="p-4 bg-[#171717] rounded-lg">
-              <h2 className="text-xl font-bold">{alert.title}</h2>
-              <p>Statut : {alert.production_status}</p>
-              <p>
-                Dernière mise à jour :{" "}
-                {new Date(alert.updated_at).toLocaleDateString()}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </DashboardLayout>
-  );
-}
-
 
 ===== page.tsx =====
 Chemin : ./src/app/dashboard/stats/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import { useEffect, useState } from "react";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title as ChartTitle,
+  Tooltip,
+  Legend,
+  Filler,
+} from "chart.js";
+import { Line, Bar } from "react-chartjs-2";
+import Link from "next/link";
+
+// shadcn/ui components
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+
+// Import supabase client
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ChartTitle,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 interface Stats {
-  toDo: number;
-  inProgress: number;
-  readyToPublish: number;
-  finished: number;
+  toDo: number;           // À monter
+  inProgress: number;     // En cours
+  readyToPublish: number; // Prêt à publier
+  finished: number;       // Terminé
+}
+
+interface PerformanceData {
+  avgProductionTime: string; // temps moyen de production (en jours)
+  monthlyCounts: Record<string, number>;
+  totalVideos: number;
+}
+
+// Pour la distribution par catégorie
+interface CategoryRow {
+  id: number;
+  title: string;
+  category_videos: Array<{
+    id: number;
+  }>;
 }
 
 export default function StatsPage() {
-  const [stats, setStats] = useState<Stats>({
-    toDo: 0,
-    inProgress: 0,
-    readyToPublish: 0,
-    finished: 0,
-  });
+  const supabase = createClientComponentClient();
+
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [performance, setPerformance] = useState<PerformanceData | null>(null);
+
+  // Distribution par catégorie : { label: string, total: number }
+  const [categoryDistribution, setCategoryDistribution] = useState<
+    { label: string; total: number }[]
+  >([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Calcul du total de vidéos toutes catégories confondues
+  const totalVideos =
+    stats?.toDo + stats?.inProgress + stats?.readyToPublish + stats?.finished || 0;
+
+  // --- FETCH DE /api/stats ET /api/performance ---
   useEffect(() => {
-    const fetchStats = async () => {
+    (async () => {
       try {
-        const response = await fetch("/api/stats");
-        if (!response.ok) {
-          throw new Error("Erreur lors de la récupération des statistiques");
+        setIsLoading(true);
+
+        // 1. Récupération des stats par statut
+        const resStats = await fetch("/api/stats");
+        if (!resStats.ok) {
+          throw new Error("Erreur lors de la récupération des stats");
         }
-        const data = (await response.json()) as Stats;
-        setStats(data);
-      } catch (err: unknown) {
-        console.error("Erreur lors du chargement des statistiques", err);
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Impossible de charger les statistiques");
+        const dataStats = (await resStats.json()) as Stats;
+
+        // 2. Récupération des infos de performance
+        const resPerf = await fetch("/api/performance");
+        if (!resPerf.ok) {
+          throw new Error("Erreur lors de la récupération de la performance");
         }
+        const dataPerf = (await resPerf.json()) as PerformanceData;
+
+        setStats(dataStats);
+        setPerformance(dataPerf);
+      } catch (err) {
+        console.error("Erreur:", err);
+        setError(
+          "Impossible de charger les données. Veuillez réessayer plus tard."
+        );
       } finally {
         setIsLoading(false);
       }
-    };
-
-    fetchStats();
+    })();
   }, []);
 
+  // --- FETCH DE LA DISTRIBUTION PAR CATÉGORIE ---
+  useEffect(() => {
+    (async () => {
+      try {
+        // On récupère la liste des catégories + la liste des vidéos associées
+        const { data, error } = await supabase
+          .from("video_categories")
+          .select("id, title, category_videos (id)")
+          .order("title", { ascending: true });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        const catRows = (data || []) as CategoryRow[];
+        // On calcule, pour chaque catégorie, le total de vidéos
+        const distribution = catRows.map((cat) => ({
+          label: cat.title,
+          total: cat.category_videos ? cat.category_videos.length : 0,
+        }));
+
+        setCategoryDistribution(distribution);
+      } catch (err: any) {
+        console.error("Erreur fetch category distribution:", err);
+      }
+    })();
+  }, [supabase]);
+
+  // --- PREPARATION DU PREMIER CHART (Évolution par statut) ---
+  const chartDataByStatus = {
+    labels: ["À monter", "En cours", "Prêt à publier", "Terminé"],
+    datasets: [
+      {
+        label: "Vidéos",
+        data: stats
+          ? [stats.toDo, stats.inProgress, stats.readyToPublish, stats.finished]
+          : [],
+        borderColor: "#3b82f6",
+        backgroundColor: "rgba(59, 130, 246, 0.2)",
+        borderWidth: 3,
+        tension: 0.4,
+        fill: true,
+        pointRadius: 6,
+        pointBackgroundColor: "#3b82f6",
+        pointBorderColor: "#171717",
+        pointBorderWidth: 2,
+        pointHoverRadius: 8,
+        pointHoverBackgroundColor: "#ffffff",
+        pointHoverBorderColor: "#3b82f6",
+        pointHoverBorderWidth: 2,
+      },
+    ],
+  };
+
+  const chartOptionsByStatus = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: "rgba(23, 23, 23, 0.9)",
+        titleColor: "#fff",
+        bodyColor: "#fff",
+        padding: 12,
+        borderColor: "rgba(59, 130, 246, 0.5)",
+        borderWidth: 1,
+        cornerRadius: 8,
+        displayColors: false,
+        callbacks: {
+          title: (tooltipItems: any) => tooltipItems[0].label,
+          label: (context: any) => `${context.formattedValue} vidéos`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: {
+          color: "#a1a1aa",
+          font: { size: 11 },
+          padding: 8,
+        },
+        border: {
+          color: "rgba(255, 255, 255, 0.1)",
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(255, 255, 255, 0.05)",
+          lineWidth: 1,
+        },
+        border: {
+          color: "rgba(255, 255, 255, 0.1)",
+        },
+        ticks: {
+          color: "#a1a1aa",
+          stepSize: 1,
+          font: { size: 11 },
+          padding: 8,
+        },
+        beginAtZero: true,
+      },
+    },
+    interaction: {
+      mode: "index" as const,
+      intersect: false,
+    },
+    elements: {
+      line: {
+        capBezierPoints: true,
+      },
+    },
+    animation: {
+      duration: 1500,
+      easing: "easeOutQuart",
+    },
+  };
+
+  // --- PREPARATION DU SECOND CHART (Vidéos terminées par mois) ---
+  const monthlyCounts = performance?.monthlyCounts || {};
+  const months = Object.keys(monthlyCounts).sort();
+  const counts = months.map((m) => monthlyCounts[m]);
+
+  const chartDataByMonth = {
+    labels: months,
+    datasets: [
+      {
+        label: "Vidéos terminées",
+        data: counts,
+        backgroundColor: "rgba(147, 51, 234, 0.6)",
+        borderColor: "#9333EA",
+        borderWidth: 2,
+      },
+    ],
+  };
+
+  const chartOptionsByMonth = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: "rgba(23, 23, 23, 0.9)",
+        titleColor: "#fff",
+        bodyColor: "#fff",
+        padding: 12,
+        borderColor: "rgba(147, 51, 234, 0.5)",
+        borderWidth: 1,
+        cornerRadius: 8,
+        displayColors: false,
+        callbacks: {
+          title: (tooltipItems: any) => `Mois: ${tooltipItems[0].label}`,
+          label: (context: any) => `${context.formattedValue} vidéos`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: {
+          color: "#a1a1aa",
+          font: { size: 11 },
+          padding: 8,
+        },
+        border: {
+          color: "rgba(255, 255, 255, 0.1)",
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(255, 255, 255, 0.05)",
+          lineWidth: 1,
+        },
+        border: {
+          color: "rgba(255, 255, 255, 0.1)",
+        },
+        ticks: {
+          color: "#a1a1aa",
+          font: { size: 11 },
+          padding: 8,
+        },
+        beginAtZero: true,
+      },
+    },
+    animation: {
+      duration: 1500,
+      easing: "easeOutQuart",
+    },
+  };
+
+  // --- NOUVEAU CHART : DISTRIBUTION PAR CATÉGORIE ---
+  // On construit un bar chart simple : X = noms de catégorie, Y = total de vidéos
+  const catLabels = categoryDistribution.map((c) => c.label);
+  const catCounts = categoryDistribution.map((c) => c.total);
+
+  const chartDataByCategory = {
+    labels: catLabels,
+    datasets: [
+      {
+        label: "Nombre de vidéos",
+        data: catCounts,
+        backgroundColor: "rgba(34, 197, 94, 0.6)", // un vert (tailwind: green-500)
+        borderColor: "#22c55e",
+        borderWidth: 2,
+      },
+    ],
+  };
+
+  const chartOptionsByCategory = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: "rgba(23, 23, 23, 0.9)",
+        titleColor: "#fff",
+        bodyColor: "#fff",
+        padding: 12,
+        borderColor: "rgba(34, 197, 94, 0.5)",
+        borderWidth: 1,
+        cornerRadius: 8,
+        displayColors: false,
+        callbacks: {
+          title: (tooltipItems: any) => tooltipItems[0].label,
+          label: (context: any) => `${context.formattedValue} vidéos`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: {
+          color: "#a1a1aa",
+          font: { size: 11 },
+          padding: 8,
+        },
+        border: {
+          color: "rgba(255, 255, 255, 0.1)",
+        },
+      },
+      y: {
+        grid: {
+          color: "rgba(255, 255, 255, 0.05)",
+          lineWidth: 1,
+        },
+        border: {
+          color: "rgba(255, 255, 255, 0.1)",
+        },
+        ticks: {
+          color: "#a1a1aa",
+          font: { size: 11 },
+          padding: 8,
+        },
+        beginAtZero: true,
+      },
+    },
+    animation: {
+      duration: 1500,
+      easing: "easeOutQuart",
+    },
+  };
+
+  // Items de status (pour affichage résumé + barres colorées)
+  const statusItems = [
+    {
+      title: "À monter",
+      value: stats?.toDo || 0,
+      bgColor: "bg-yellow-600",
+    },
+    {
+      title: "En cours",
+      value: stats?.inProgress || 0,
+      bgColor: "bg-blue-600",
+    },
+    {
+      title: "Prêt à publier",
+      value: stats?.readyToPublish || 0,
+      bgColor: "bg-purple-600",
+    },
+    {
+      title: "Terminé",
+      value: stats?.finished || 0,
+      bgColor: "bg-green-600",
+    },
+  ];
+
   return (
-    <DashboardLayout>
+    <div className="p-4 md:p-6 text-gray-200 min-h-screen">
       <header className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-semibold">
-          Vue d&apos;ensemble de la production
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+          Statistiques
         </h1>
+        <p className="text-sm text-gray-400 mt-1">
+          Aperçu global de la production vidéo
+        </p>
       </header>
 
-      {isLoading ? (
-        <div>Chargement...</div>
-      ) : error ? (
-        <div className="text-red-500">{error}</div>
-      ) : (
-        <div className="grid gap-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 bg-[#171717] rounded-lg text-center">
-              <p className="text-3xl font-bold">{stats.toDo}</p>
-              <p>À monter</p>
-            </div>
-            <div className="p-4 bg-[#171717] rounded-lg text-center">
-              <p className="text-3xl font-bold">{stats.inProgress}</p>
-              <p>En cours</p>
-            </div>
-            <div className="p-4 bg-[#171717] rounded-lg text-center">
-              <p className="text-3xl font-bold">{stats.readyToPublish}</p>
-              <p>Prêt à publier</p>
-            </div>
-            <div className="p-4 bg-[#171717] rounded-lg text-center">
-              <p className="text-3xl font-bold">{stats.finished}</p>
-              <p>Terminé</p>
-            </div>
+      {/* Indicateur de chargement + gestion d'erreur */}
+      {isLoading && !error && (
+        <div className="space-y-6">
+          <Skeleton className="h-10 w-1/3 bg-gray-800" />
+          <div className="grid grid-cols-2 gap-3">
+            {[1, 2, 3, 4].map((item) => (
+              <Skeleton key={item} className="h-24 w-full bg-gray-800" />
+            ))}
           </div>
-          {/* Vous pouvez ajouter ici d'autres visualisations (graphique, etc.) */}
+          <Skeleton className="h-80 w-full bg-gray-800" />
         </div>
       )}
-    </DashboardLayout>
+
+      {error && (
+        <Card className="bg-red-900/20 border border-red-700 text-red-300 p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-red-400"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <div>
+              <h3 className="font-medium text-red-200">Erreur de chargement</h3>
+              <p className="text-sm mt-1">{error}</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {!isLoading && !error && stats && performance && (
+        <div className="space-y-6">
+          {/* Cartes de stats (à monter, en cours, prêt, terminé) */}
+          <div className="grid grid-cols-2 gap-3">
+            {statusItems.map((item) => {
+              const percentage = totalVideos > 0
+                ? Math.round((item.value / totalVideos) * 100)
+                : 0;
+              return (
+                <Card
+                  key={item.title}
+                  className="bg-[#1a1a1a] border border-[#2a2a2a] hover:border-gray-600 transition-all duration-300"
+                >
+                  <CardContent className="p-3">
+                    <p className="text-gray-400 text-sm">{item.title}</p>
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-3xl font-bold text-white">
+                        {item.value}
+                      </span>
+                      <Badge className={`${item.bgColor} ml-2`}>
+                        {percentage}%
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Graphique #1: répartition des vidéos par statut */}
+          <Card className="bg-[#171717] border border-[#2a2a2a] hover:border-gray-600 transition-all duration-300 overflow-hidden">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white flex items-center text-lg">
+                  <span>Évolution par statut</span>
+                </CardTitle>
+                <Badge className="bg-blue-900/50 text-blue-200">
+                  {totalVideos} vidéos total
+                </Badge>
+              </div>
+              <CardDescription className="text-gray-400 text-sm">
+                Nombre de vidéos selon leur étape de production
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-2 pt-2 pb-0">
+              <div className="relative w-full h-64 sm:h-72">
+                <Line data={chartDataByStatus} options={chartOptionsByStatus} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Cartes Performance + Distribution (barres horizontales) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            {/* Carte 2: Distribution (progress bars) */}
+            <Card className="bg-[#171717] border border-[#2a2a2a] hover:border-gray-600 transition-all duration-300">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-white text-lg">Distribution</CardTitle>
+                <CardDescription className="text-gray-400 text-sm">
+                  Répartition des statuts
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {statusItems.map((item) => {
+                  const pct = totalVideos > 0
+                    ? Math.round((item.value / totalVideos) * 100)
+                    : 0;
+                  return (
+                    <div key={item.title} className="mb-3">
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm text-gray-300">{item.title}</span>
+                        <span className="text-sm text-gray-400">{pct}%</span>
+                      </div>
+                      <div className="w-full bg-gray-800 rounded-full h-2.5">
+                        <div
+                          className={`${item.bgColor} h-2.5 rounded-full`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Graphique #2: nombre de vidéos terminées par mois */}
+          <Card className="bg-[#171717] border border-[#2a2a2a] hover:border-gray-600 transition-all duration-300">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-white text-lg">
+                Vidéos terminées par mois
+              </CardTitle>
+              <CardDescription className="text-gray-400 text-sm">
+                Historique des exports/terminaisons
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-2 pt-2 pb-0">
+              <div className="relative w-full h-64 sm:h-72">
+                {months.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-gray-500">
+                    Aucune donnée mensuelle
+                  </div>
+                ) : (
+                  <Bar data={chartDataByMonth} options={chartOptionsByMonth} />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* NOUVEAU Graphique #3: nombre total de vidéos par catégorie */}
+          <Card className="bg-[#171717] border border-[#2a2a2a] hover:border-gray-600 transition-all duration-300">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-white text-lg">
+                Répartition par catégorie
+              </CardTitle>
+              <CardDescription className="text-gray-400 text-sm">
+                Nombre de vidéos pour chaque catégorie
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-2 pt-2 pb-0">
+              <div className="relative w-full h-64 sm:h-72">
+                {categoryDistribution.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-gray-500">
+                    Aucune catégorie ou aucune vidéo
+                  </div>
+                ) : (
+                  <Bar
+                    data={chartDataByCategory}
+                    options={chartOptionsByCategory}
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Récapitulatif détaillé (table) */}
+          <Card className="bg-[#171717] border border-[#2a2a2a] hover:border-gray-600 transition-all duration-300">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-white text-lg">Récapitulatif détaillé</CardTitle>
+              <CardDescription className="text-gray-400 text-sm">
+                Distribution des vidéos par statut
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b border-gray-800">
+                    <TableHead className="text-gray-400">Statut</TableHead>
+                    <TableHead className="text-right text-gray-400">Quantité</TableHead>
+                    <TableHead className="text-right text-gray-400">Pourcentage</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {statusItems.map((item) => {
+                    const pct = totalVideos > 0
+                      ? Math.round((item.value / totalVideos) * 100)
+                      : 0;
+                    return (
+                      <TableRow
+                        key={item.title}
+                        className="border-b border-gray-800 hover:bg-[#1d1d1d]"
+                      >
+                        <TableCell className="font-medium text-gray-300 flex items-center">
+                          <span className={`w-3 h-3 rounded-full mr-2 ${item.bgColor}`} />
+                          {item.title}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-white">
+                          {item.value}
+                        </TableCell>
+                        <TableCell className="text-right text-gray-400">
+                          {pct}%
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  <TableRow className="bg-[#1a1a1a]">
+                    <TableCell className="font-bold text-white">Total</TableCell>
+                    <TableCell className="text-right font-bold text-white">
+                      {totalVideos}
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-white">
+                      100%
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+            <CardFooter className="text-xs text-gray-500 pt-0">
+              Dernière mise à jour:{" "}
+              {new Date().toLocaleDateString("fr-FR", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </CardFooter>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -3751,7 +5892,6 @@ Chemin : ./src/app/dashboard/priorities/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { useRouter } from "next/navigation";
 
 interface VideoPriority {
@@ -3775,15 +5915,11 @@ export default function PrioritiesPage() {
         if (!response.ok) {
           throw new Error("Erreur lors de la récupération des priorités");
         }
-        const data = (await response.json()) as VideoPriority[];
+        const data = await response.json();
         setVideos(data);
       } catch (err: unknown) {
         console.error("Erreur lors du chargement des priorités", err);
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Impossible de charger les priorités");
-        }
+        setError("Impossible de charger les priorités");
       } finally {
         setIsLoading(false);
       }
@@ -3793,11 +5929,10 @@ export default function PrioritiesPage() {
   }, []);
 
   return (
-    <DashboardLayout>
+    <div className="p-4 text-[#ECECEC]">
       <header className="mb-6">
         <h1 className="text-2xl md:text-3xl font-semibold">Priorisation et planification</h1>
       </header>
-
       {isLoading ? (
         <div>Chargement...</div>
       ) : error ? (
@@ -3826,91 +5961,7 @@ export default function PrioritiesPage() {
           ))}
         </div>
       )}
-    </DashboardLayout>
-  );
-}
-
-
-===== page.tsx =====
-Chemin : ./src/app/dashboard/performance/page.tsx
-"use client";
-
-import { useState, useEffect } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
-
-interface PerformanceStats {
-  avgProductionTime: string;
-  monthlyCounts: Record<string, number>;
-  totalVideos: number;
-}
-
-export default function PerformancePage() {
-  const [stats, setStats] = useState<PerformanceStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const fetchPerformance = async () => {
-      try {
-        const response = await fetch("/api/performance");
-        if (!response.ok) {
-          throw new Error("Erreur lors de la récupération des statistiques de performance");
-        }
-        const data = (await response.json()) as PerformanceStats;
-        setStats(data);
-      } catch (err: unknown) {
-        console.error("Erreur lors du chargement des statistiques de performance", err);
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Une erreur inconnue est survenue");
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPerformance();
-  }, []);
-
-  return (
-    <DashboardLayout>
-      <header className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-semibold">
-          Suivi de performance et Reporting
-        </h1>
-      </header>
-
-      {isLoading ? (
-        <div>Chargement...</div>
-      ) : error ? (
-        <div className="text-red-500">{error}</div>
-      ) : stats ? (
-        <div className="space-y-6">
-          {/* Temps moyen de production */}
-          <div className="p-4 bg-[#171717] rounded-lg">
-            <h2 className="text-xl font-bold">Temps moyen de production</h2>
-            <p className="text-3xl">{stats.avgProductionTime} jours</p>
-          </div>
-          {/* Vidéos terminées par mois */}
-          <div className="p-4 bg-[#171717] rounded-lg">
-            <h2 className="text-xl font-bold">Vidéos terminées par mois</h2>
-            <ul>
-              {Object.entries(stats.monthlyCounts).map(([month, count]) => (
-                <li key={month}>
-                  {month}: {count} vidéo{count > 1 ? "s" : ""}
-                </li>
-              ))}
-            </ul>
-          </div>
-          {/* Total des vidéos terminées */}
-          <div className="p-4 bg-[#171717] rounded-lg">
-            <h2 className="text-xl font-bold">Total des vidéos terminées</h2>
-            <p className="text-3xl">{stats.totalVideos}</p>
-          </div>
-        </div>
-      ) : null}
-    </DashboardLayout>
+    </div>
   );
 }
 

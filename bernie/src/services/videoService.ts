@@ -11,6 +11,7 @@ interface VideoDetailsResult {
   production_status: string;
   created_at: string;
   updated_at: string;
+  category_id: number;
   video_details: Array<{
     title: string;
     instructions_miniature: string;
@@ -20,7 +21,8 @@ interface VideoDetailsResult {
     production_status: string;
     description: string;
   }>;
-  video_categories: { identifier: string }[] | null;
+  // On accepte que Supabase renvoie soit un tableau, soit un objet unique pour la catégorie
+  video_categories: { identifier: string }[] | { identifier: string } | null;
 }
 
 /**
@@ -48,6 +50,10 @@ const updateFieldAcrossTables = async (
   }
 };
 
+/**
+ * Récupère les détails d'une vidéo et construit le fullIdentifier sous la forme "A-1".
+ * On récupère également category_id et production_status pour satisfaire l'interface Video.
+ */
 export const fetchVideoDetails = async (id: string): Promise<Video> => {
   const { data, error } = await supabase
     .from("category_videos")
@@ -59,6 +65,7 @@ export const fetchVideoDetails = async (id: string): Promise<Video> => {
       production_status,
       created_at,
       updated_at,
+      category_id,
       video_details (
         title,
         instructions_miniature,
@@ -82,13 +89,21 @@ export const fetchVideoDetails = async (id: string): Promise<Video> => {
     throw new Error("Détails de la vidéo introuvables");
   }
 
-  // Conversion via unknown pour ensuite le caster en VideoDetailsResult
   const parsedData = data as unknown as VideoDetailsResult;
-  const { video_categories, video_details, ...rest } = parsedData;
-  const categoryIdentifier =
-    video_categories && video_categories.length > 0
-      ? video_categories[0].identifier
-      : "";
+  const { video_details, ...rest } = parsedData;
+
+  // Gestion de video_categories : tableau ou objet unique
+  let categoryIdentifier = "";
+  if (parsedData.video_categories) {
+    if (Array.isArray(parsedData.video_categories)) {
+      categoryIdentifier =
+        parsedData.video_categories.length > 0
+          ? parsedData.video_categories[0].identifier
+          : "";
+    } else {
+      categoryIdentifier = parsedData.video_categories.identifier;
+    }
+  }
   const numericIdentifier = parsedData.identifier || 0;
   const fullIdentifier = `${categoryIdentifier}-${numericIdentifier}`;
 
@@ -96,14 +111,39 @@ export const fetchVideoDetails = async (id: string): Promise<Video> => {
     ...rest,
     ...(video_details ? video_details[0] : {}),
     fullIdentifier,
+    category_id: rest.category_id,
+    status: rest.production_status,
   } as Video;
 };
 
+/**
+ * Met à jour le titre d'une vidéo et enregistre l'action dans user_activity.
+ * @param userId - L'ID de l'utilisateur effectuant l'action.
+ * @param id - L'ID de la vidéo.
+ * @param newTitle - Le nouveau titre.
+ */
 export const updateTitle = async (
+  userId: string,
   id: string,
   newTitle: string
 ): Promise<void> => {
+  // 1. Met à jour le titre dans les deux tables
   await updateFieldAcrossTables(id, "title", newTitle);
+
+  // 2. Enregistre un log dans la table user_activity
+  const detailsText = `La vidéo ID=${id} a un nouveau titre: "${newTitle}"`;
+  const { error: insertError } = await supabase
+    .from("user_activity")
+    .insert([
+      {
+        user_id: userId,
+        action_type: "update_title",
+        details: detailsText,
+      },
+    ]);
+  if (insertError) {
+    console.error("Impossible d'insérer le log:", insertError);
+  }
 };
 
 export const updateDescription = async (

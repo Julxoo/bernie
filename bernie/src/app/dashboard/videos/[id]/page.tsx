@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import {
   fetchVideoDetails,
@@ -12,7 +13,6 @@ import {
   updateStatus,
 } from "../../../../services/videoService";
 import { Video, VIDEO_STATUS } from "../../../../types/video";
-// L'import de STATUS_STEPS a été supprimé car il n'est pas utilisé.
 import EditableItem from "../../../../components/EditableItem";
 import { StatusProgress } from "../../../../components/StatusProgress";
 import { ArrowLeft, Trash2 } from "react-feather";
@@ -57,20 +57,19 @@ interface Comment {
 }
 
 export default function VideoPage({ params }: { params: { id: string } }) {
+  const { data: session } = useSession();
   const [video, setVideo] = useState<Video | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isStatusChanging, setIsStatusChanging] = useState<boolean>(false);
-  const router = useRouter();
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [loadingComments, setLoadingComments] = useState(true);
   const [errorComments, setErrorComments] = useState("");
-
-  // État pour la suppression
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
+
+  const router = useRouter();
 
   useEffect(() => {
     const loadVideo = async () => {
@@ -79,11 +78,11 @@ export default function VideoPage({ params }: { params: { id: string } }) {
         setVideo(data);
       } catch (err: unknown) {
         console.error("Erreur lors du chargement de la vidéo :", err);
-        if (err instanceof Error) {
-          setError("Impossible de charger les détails de la vidéo");
-        } else {
-          setError("Erreur inconnue lors du chargement de la vidéo");
-        }
+        setError(
+          err instanceof Error
+            ? "Impossible de charger les détails de la vidéo"
+            : "Erreur inconnue lors du chargement de la vidéo"
+        );
       } finally {
         setIsLoading(false);
       }
@@ -91,24 +90,23 @@ export default function VideoPage({ params }: { params: { id: string } }) {
     loadVideo();
   }, [params.id]);
 
-  // Mise à jour du titre
   const handleTitleUpdate = async (newTitle: string) => {
     const trimmed = newTitle.trim();
     if (!trimmed) return;
     try {
-      await updateTitle(params.id, trimmed);
+      if (!session?.user?.id) throw new Error("Utilisateur non authentifié");
+      await updateTitle(session.user.id, params.id, trimmed);
       setVideo((prev) => (prev ? { ...prev, title: trimmed } : null));
     } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour du titre :", err);
-      if (err instanceof Error) {
-        setError("Impossible de mettre à jour le titre");
-      } else {
-        setError("Erreur inconnue lors de la mise à jour du titre");
-      }
+      setError(
+        err instanceof Error
+          ? "Impossible de mettre à jour le titre"
+          : "Erreur inconnue lors de la mise à jour du titre"
+      );
     }
   };
 
-  // Mise à jour de la description
   const handleDescriptionUpdate = async (newDescription: string) => {
     try {
       await updateDescription(params.id, newDescription);
@@ -117,15 +115,14 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       );
     } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour de la description :", err);
-      if (err instanceof Error) {
-        setError("Impossible de mettre à jour la description");
-      } else {
-        setError("Erreur inconnue lors de la mise à jour de la description");
-      }
+      setError(
+        err instanceof Error
+          ? "Impossible de mettre à jour la description"
+          : "Erreur inconnue lors de la mise à jour de la description"
+      );
     }
   };
 
-  // Mise à jour des instructions
   const handleInstructionsUpdate = async (newInstructions: string) => {
     try {
       await updateInstructions(params.id, newInstructions);
@@ -134,15 +131,14 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       );
     } catch (err: unknown) {
       console.error("Erreur lors de la mise à jour des instructions :", err);
-      if (err instanceof Error) {
-        setError("Impossible de mettre à jour les instructions");
-      } else {
-        setError("Erreur inconnue lors de la mise à jour des instructions");
-      }
+      setError(
+        err instanceof Error
+          ? "Impossible de mettre à jour les instructions"
+          : "Erreur inconnue lors de la mise à jour des instructions"
+      );
     }
   };
 
-  // Mise à jour d'un lien (rush, vidéo montée, miniature)
   const handleLinkUpdate = async (
     newValue: string,
     dbField: "rush_link" | "video_link" | "miniature_link"
@@ -152,15 +148,14 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       setVideo((prev) => (prev ? { ...prev, [dbField]: newValue } : null));
     } catch (err: unknown) {
       console.error(`Erreur lors de la mise à jour du lien ${dbField} :`, err);
-      if (err instanceof Error) {
-        setError(`Impossible de mettre à jour le lien ${dbField}`);
-      } else {
-        setError("Erreur inconnue lors de la mise à jour du lien");
-      }
+      setError(
+        err instanceof Error
+          ? `Impossible de mettre à jour le lien ${dbField}`
+          : "Erreur inconnue lors de la mise à jour du lien"
+      );
     }
   };
 
-  // Mise à jour du statut avec gestion de toast en cas d'erreur
   const handleStatusUpdate = async (
     newStatus: (typeof VIDEO_STATUS)[keyof typeof VIDEO_STATUS]
   ) => {
@@ -183,32 +178,6 @@ export default function VideoPage({ params }: { params: { id: string } }) {
     }
   };
 
-  // Suppression de la vidéo
-  const handleDeleteVideo = async () => {
-    setIsDeleting(true);
-    setDeleteError("");
-    try {
-      const response = await fetch(`/api/videos/${params.id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Échec de la suppression");
-      }
-      router.push("/dashboard");
-    } catch (err: unknown) {
-      console.error("Erreur lors de la suppression de la vidéo :", err);
-      if (err instanceof Error) {
-        setDeleteError(err.message);
-      } else {
-        setDeleteError("Erreur inconnue lors de la suppression");
-      }
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteConfirm(false);
-    }
-  };
-
   const fetchComments = useCallback(async () => {
     try {
       const response = await fetch(`/api/videos/${params.id}/comments`);
@@ -219,11 +188,11 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       setComments(data);
     } catch (err: unknown) {
       console.error("Erreur lors du chargement des commentaires", err);
-      if (err instanceof Error) {
-        setErrorComments("Impossible de charger les commentaires");
-      } else {
-        setErrorComments("Erreur inconnue lors du chargement des commentaires");
-      }
+      setErrorComments(
+        err instanceof Error
+          ? "Impossible de charger les commentaires"
+          : "Erreur inconnue lors du chargement des commentaires"
+      );
     } finally {
       setLoadingComments(false);
     }
@@ -235,7 +204,6 @@ export default function VideoPage({ params }: { params: { id: string } }) {
     }
   }, [video, fetchComments]);
 
-  // Fonction pour poster un commentaire
   const postComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
@@ -248,12 +216,35 @@ export default function VideoPage({ params }: { params: { id: string } }) {
       if (!response.ok) {
         throw new Error("Erreur lors de l'envoi du commentaire");
       }
-      // Rafraîchir la liste des commentaires
       setNewComment("");
       fetchComments();
     } catch (err: unknown) {
       console.error("Erreur lors de l'ajout du commentaire", err);
       alert("Impossible d'ajouter le commentaire");
+    }
+  };
+
+  const handleDeleteVideo = async () => {
+    try {
+      setIsDeleting(true);
+      const response = await fetch(`/api/videos/${params.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Échec de la suppression");
+      }
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      console.error("Erreur lors de la suppression de la vidéo :", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de supprimer la vidéo"
+      );
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -275,7 +266,6 @@ export default function VideoPage({ params }: { params: { id: string } }) {
   return (
     <div className="min-h-screen bg-[#212121] text-[#ECECEC]">
       <div className="container mx-auto p-4 md:p-8 max-w-4xl">
-        {/* ------------------ Header (Bouton Retour + Titre en gros + Statut + Bouton Supprimer) ------------------ */}
         <header className="mb-6">
           <button
             onClick={() => router.back()}
@@ -333,16 +323,14 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-black/20 text-red-500 rounded-md transition-colors duration-200 text-sm"
-                disabled={isDeleting}
               >
                 <Trash2 size={16} />
-                {isDeleting ? "Suppression..." : "Supprimer"}
+                Supprimer
               </button>
             </div>
           </div>
         </header>
 
-        {/* ------------------ Contenu principal ------------------ */}
         <main className="grid gap-6">
           <Section title="Contenu de la vidéo">
             <EditableItem
@@ -374,9 +362,7 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               label="Montage final"
               value={video.video_link || ""}
               placeholder="Ajouter le lien de la vidéo montée"
-              onSave={(newVal: string) =>
-                handleLinkUpdate(newVal, "video_link")
-              }
+              onSave={(newVal: string) => handleLinkUpdate(newVal, "video_link")}
               isLink={true}
             />
           </Section>
@@ -393,9 +379,7 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               label="Fichier miniature"
               value={video.miniature_link || ""}
               placeholder="Ajouter le lien de la miniature"
-              onSave={(newVal: string) =>
-                handleLinkUpdate(newVal, "miniature_link")
-              }
+              onSave={(newVal: string) => handleLinkUpdate(newVal, "miniature_link")}
               isLink={true}
             />
           </Section>
@@ -425,8 +409,6 @@ export default function VideoPage({ params }: { params: { id: string } }) {
             <h2 className="text-lg md:text-xl font-medium mb-4">
               Commentaires internes
             </h2>
-
-            {/* Formulaire pour ajouter un commentaire */}
             <form onSubmit={postComment} className="mb-4">
               <textarea
                 value={newComment}
@@ -442,8 +424,6 @@ export default function VideoPage({ params }: { params: { id: string } }) {
                 Ajouter
               </button>
             </form>
-
-            {/* Liste des commentaires */}
             {loadingComments ? (
               <div>Chargement des commentaires...</div>
             ) : errorComments ? (
@@ -463,69 +443,33 @@ export default function VideoPage({ params }: { params: { id: string } }) {
               </ul>
             )}
           </section>
-
-          {deleteError && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500 text-red-500 rounded">
-              {deleteError}
-            </div>
-          )}
         </main>
       </div>
 
-      {/* ------------------ Modale de confirmation de suppression ------------------ */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#171717] p-6 rounded-lg shadow-xl max-w-md w-full border border-gray-200 dark:border-[#424242]">
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-[#ECECEC]">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#171717] p-6 rounded-lg shadow-xl border border-[#424242] max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4 text-[#ECECEC]">
               Confirmer la suppression
             </h2>
-            <p className="mb-6 text-gray-700 dark:text-gray-300">
+            <p className="mb-6 text-gray-300">
               Êtes-vous sûr de vouloir supprimer la vidéo{" "}
               <strong>{video.title}</strong> ?
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-[#424242] dark:hover:bg-[#535353] text-gray-800 dark:text-[#ECECEC] rounded-md transition-colors duration-200 text-sm"
+                className="px-4 py-2 bg-gray-300 text-gray-900 rounded hover:bg-gray-400 transition-colors"
                 disabled={isDeleting}
               >
                 Annuler
               </button>
               <button
                 onClick={handleDeleteVideo}
-                className="px-3 py-1.5 flex items-center gap-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-md transition-colors duration-200 text-sm"
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                 disabled={isDeleting}
               >
-                {isDeleting ? (
-                  <>
-                    <svg
-                      className="animate-spin h-4 w-4"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Suppression...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={16} />
-                    Confirmer
-                  </>
-                )}
+                {isDeleting ? "Suppression..." : "Supprimer"}
               </button>
             </div>
           </div>

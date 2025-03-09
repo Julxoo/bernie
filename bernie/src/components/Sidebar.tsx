@@ -3,6 +3,16 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
+import { 
+  Grid, 
+  BarChart2, 
+  List, 
+  Settings, 
+  User, 
+  LogOut,
+  X 
+} from "lucide-react";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -11,86 +21,162 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, onToggle, onSignOut }: SidebarProps) {
-  const { data: session } = useSession(); // Ce hook fonctionne maintenant car l'application est enveloppée dans SessionProvider
+  const { data: session } = useSession();
+  const pathname = usePathname();
+
+  // Fermer la sidebar en mobile uniquement, si on clique sur un lien différent
+  const handleLinkClick = (href: string) => {
+    if (pathname === href) return;
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      onToggle();
+    }
+  };
+
+  const isActiveLink = (href: string) => pathname === href;
 
   return (
-    <aside
-      className={`fixed inset-y-0 left-0 transform transition-transform duration-300 ease-in-out z-40 w-64 bg-[#171717] flex flex-col border-r border-[#424242] 
-        pt-12 /* <-- on ajoute un padding-top ici */
-        ${isOpen ? "translate-x-0" : "-translate-x-full"} 
-        md:static md:translate-x-0`}
-    >
-      <div className="p-6">
-        <h1 className="text-xl font-semibold text-[#ECECEC]">Dashboard</h1>
-      </div>
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
-          <li>
-            <Link
-              href="/dashboard"
-              className="text-[#ECECEC] hover:text-gray-300 block py-2"
+    <>
+      {/* Overlay pour mobile quand la sidebar est ouverte */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden" 
+          onClick={onToggle}
+        />
+      )}
+      
+      <aside
+        className={`
+          fixed top-0 left-0 z-40 w-64 h-screen bg-[#171717] border-r border-[#424242]
+          transform transition-transform duration-300 ease-in-out
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
+          md:translate-x-0
+        `}
+      >
+        <div className="flex flex-col h-full">
+          {/* En-tête (on retire la croix à gauche, on garde seulement le bouton de droite) */}
+          <div className="p-4 border-b border-[#424242] flex items-center justify-between">
+            <span className="text-[#ECECEC] font-medium">Dashboard</span>
+            <button 
               onClick={onToggle}
+              className="md:hidden text-[#ECECEC]"
+              aria-label="Fermer le menu"
             >
-              Catégories
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/stats"
-              className="text-[#ECECEC] hover:text-gray-300 block py-2"
-              onClick={onToggle}
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Navigation principale */}
+          <nav className="flex-1 overflow-y-auto">
+            <ul className="space-y-1 py-2">
+              <li>
+                <Link
+                  href="/dashboard"
+                  className={`
+                    flex items-center space-x-3 px-4 py-2
+                    ${isActiveLink("/dashboard") 
+                      ? "bg-[#252525] text-white" 
+                      : "text-[#ECECEC] hover:bg-[#222222]"
+                    }
+                  `}
+                  onClick={() => handleLinkClick("/dashboard")}
+                >
+                  <Grid className="w-5 h-5" />
+                  <span>Catégories</span>
+                </Link>
+              </li>
+              
+              <li>
+                <Link
+                  href="/dashboard/stats"
+                  className={`
+                    flex items-center space-x-3 px-4 py-2
+                    ${isActiveLink("/dashboard/stats") 
+                      ? "bg-[#252525] text-white" 
+                      : "text-[#ECECEC] hover:bg-[#222222]"
+                    }
+                  `}
+                  onClick={() => handleLinkClick("/dashboard/stats")}
+                >
+                  <BarChart2 className="w-5 h-5" />
+                  <span>Statistiques</span>
+                </Link>
+              </li>
+              
+              <li>
+                <Link
+                  href="/dashboard/priorities"
+                  className={`
+                    flex items-center space-x-3 px-4 py-2
+                    ${isActiveLink("/dashboard/priorities") 
+                      ? "bg-[#252525] text-white" 
+                      : "text-[#ECECEC] hover:bg-[#222222]"
+                    }
+                  `}
+                  onClick={() => handleLinkClick("/dashboard/priorities")}
+                >
+                  <List className="w-5 h-5" />
+                  <span>Priorités</span>
+                </Link>
+              </li>
+              
+              {session?.user?.role === "admin" && (
+                <li>
+                  <Link
+                    href="/dashboard/admin"
+                    className={`
+                      flex items-center space-x-3 px-4 py-2
+                      ${isActiveLink("/dashboard/admin") 
+                        ? "bg-[#252525] text-white" 
+                        : "text-[#ECECEC] hover:bg-[#222222]"
+                      }
+                    `}
+                    onClick={() => handleLinkClick("/dashboard/admin")}
+                  >
+                    <Settings className="w-5 h-5" />
+                    <span>Administration</span>
+                  </Link>
+                </li>
+              )}
+            </ul>
+            
+            <div className="mt-4 pt-2 border-t border-[#424242]">
+              <h3 className="px-4 text-xs uppercase font-medium text-gray-500 mt-2 mb-2">
+                COMPTE
+              </h3>
+              <ul>
+                <li>
+                  <Link
+                    href="/dashboard/profile"
+                    className={`
+                      flex items-center space-x-3 px-4 py-2
+                      ${isActiveLink("/dashboard/profile") 
+                        ? "bg-[#252525] text-white" 
+                        : "text-[#ECECEC] hover:bg-[#222222]"
+                      }
+                    `}
+                    onClick={() => handleLinkClick("/dashboard/profile")}
+                  >
+                    <User className="w-5 h-5" />
+                    <span>Mon profil</span>
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </nav>
+
+          {/* Footer (bouton de déconnexion) */}
+          <div className="p-4 border-t border-[#424242] mt-auto">
+            <button
+              onClick={onSignOut}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-2 
+                bg-[#252525] hover:bg-[#333333] rounded-lg text-[#ECECEC]"
             >
-              Statistiques
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/alerts"
-              className="text-[#ECECEC] hover:text-gray-300 block py-2"
-              onClick={onToggle}
-            >
-              Alertes
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/priorities"
-              className="text-[#ECECEC] hover:text-gray-300 block py-2"
-              onClick={onToggle}
-            >
-              Priorités
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/performance"
-              className="text-[#ECECEC] hover:text-gray-300 block py-2"
-              onClick={onToggle}
-            >
-              Performance
-            </Link>
-          </li>
-          {session?.user?.role === "admin" && (
-            <li>
-              <Link
-                href="/dashboard/admin"
-                className="text-[#ECECEC] hover:text-gray-300 block py-2"
-                onClick={onToggle}
-              >
-                Administration
-              </Link>
-            </li>
-          )}
-        </ul>
-      </nav>
-      <div className="p-4 border-t border-[#424242]">
-        <button
-          onClick={onSignOut}
-          className="w-full px-4 py-2 text-sm bg-[#424242] hover:bg-[#171717] rounded-lg transition-colors duration-200 border border-[#424242] text-[#ECECEC]"
-        >
-          Déconnexion
-        </button>
-      </div>
-    </aside>
+              <LogOut className="w-4 h-4" />
+              <span>Déconnexion</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }

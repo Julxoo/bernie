@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import CreateCategoryModal from "@/components/CreateCategoryModal";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface CategoryWithCounts {
   id: number;
@@ -27,17 +27,17 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+
   const supabase = createClientComponentClient();
   const router = useRouter();
 
   const fetchCategories = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Récupérer les catégories et leurs vidéos associées
       const { data, error } = await supabase
         .from("video_categories")
         .select(`
-          id, 
+          id,
           identifier,
           title,
           category_videos (
@@ -48,10 +48,8 @@ export default function DashboardPage() {
 
       if (error) throw error;
 
-      // On s'assure que data est un tableau de VideoCategory
       const dataCategories = (data || []) as VideoCategory[];
 
-      // Calculer les compteurs par statut
       const mapped = dataCategories.map((cat) => {
         let pending_count = 0;
         let ready_to_publish_count = 0;
@@ -91,17 +89,29 @@ export default function DashboardPage() {
   }, [fetchCategories]);
 
   return (
-    <DashboardLayout>
-      <header className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-semibold">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      {/* --- Entête avec le titre et le bouton "Voir toutes les vidéos" --- */}
+      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl sm:text-3xl md:text-3xl font-bold tracking-tight text-white">
           Catégories de vidéos
         </h1>
+
+        {/* Bouton qui renvoie vers la page listant toutes les vidéos */}
+        <Link
+          href="/dashboard/videos"
+          className="
+            inline-block px-4 py-2 rounded-md
+            bg-[#424242] text-[#ECECEC]
+            hover:bg-[#171717] transition-colors duration-200
+            border border-[#424242]
+          "
+        >
+          Voir toutes les vidéos
+        </Link>
       </header>
 
       {isLoading ? (
-        <div className="text-center py-6">
-          Chargement en cours...
-        </div>
+        <div className="text-center py-6">Chargement en cours...</div>
       ) : (
         <>
           {error && (
@@ -111,15 +121,26 @@ export default function DashboardPage() {
           )}
 
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Carte pour ajouter une nouvelle catégorie */}
+            {/* Carte pour créer une nouvelle catégorie */}
             <div
               onClick={() => setIsCreateModalOpen(true)}
-              className="bg-[#171717] p-5 md:p-6 rounded-lg border border-dashed border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer flex flex-col items-center justify-center hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+              className="
+                bg-[#171717]
+                p-4 sm:p-6
+                rounded-lg
+                border border-dashed border-[#424242]
+                transition-all duration-200
+                cursor-pointer
+                flex flex-col items-center justify-center
+                hover:shadow-md
+                md:hover:scale-[1.01]
+                active:scale-[0.99]
+              "
             >
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-[#424242] rounded-full flex items-center justify-center mb-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#424242] rounded-full flex items-center justify-center mb-3 text-xl text-white">
                 +
               </div>
-              <p className="text-center text-gray-400 text-sm md:text-base">
+              <p className="text-center text-gray-400 text-sm sm:text-base">
                 Créer une nouvelle catégorie
               </p>
             </div>
@@ -128,22 +149,34 @@ export default function DashboardPage() {
             {categories.map((category, index) => (
               <div
                 key={category.id}
-                onClick={() => router.push(`/dashboard/categories/${category.id}`)}
-                className="bg-[#171717] p-5 md:p-6 rounded-lg border border-[#424242] hover:border-[#ECECEC] transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]"
+                onClick={() =>
+                  router.push(`/dashboard/categories/${category.id}`)
+                }
+                className="
+                  bg-[#171717]
+                  p-4 sm:p-6
+                  rounded-lg
+                  border border-[#424242]
+                  transition-all duration-200
+                  cursor-pointer
+                  hover:shadow-md
+                  md:hover:scale-[1.01]
+                  active:scale-[0.99]
+                "
                 style={{ animationDelay: `${index * 50}ms` }}
               >
-                <div className="flex items-center mb-3">
-                  <span className="text-lg md:text-xl font-medium text-[#424242]">
+                <div className="flex items-center mb-2 sm:mb-3">
+                  <span className="text-base sm:text-lg md:text-xl font-medium text-[#424242]">
                     {category.identifier}
                   </span>
-                  <span className="mx-2 text-lg md:text-xl font-medium text-[#424242]">
+                  <span className="mx-2 text-base sm:text-lg md:text-xl font-medium text-[#424242]">
                     |
                   </span>
-                  <h3 className="text-lg md:text-xl font-medium truncate">
+                  <h3 className="text-base sm:text-lg md:text-xl font-medium truncate">
                     {category.title}
                   </h3>
                 </div>
-                <div className="flex flex-col text-xs md:text-sm text-gray-400 gap-1">
+                <div className="flex flex-col text-xs sm:text-sm text-gray-400 gap-1">
                   <span>{category.pending_count} en cours</span>
                   <span>{category.ready_to_publish_count} prêtes</span>
                   <span>{category.finished_count} terminées</span>
@@ -159,6 +192,6 @@ export default function DashboardPage() {
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={fetchCategories}
       />
-    </DashboardLayout>
+    </div>
   );
 }

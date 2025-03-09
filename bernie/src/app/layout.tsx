@@ -1,16 +1,8 @@
-// src/app/layout.tsx
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import React from "react";
-import { Providers } from "@/components/Providers"; // Import du composant client
+import { Providers } from "@/components/Providers";
+import GlobalWrapper from "@/components/GlobalWrapper";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-export const metadata: Metadata = {
+export const metadata = {
   title: "Grattage",
   description: "Alexandre Web App",
 };
@@ -22,8 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} antialiased`}>
-        <Providers>{children}</Providers>
+      <body className="antialiased">
+        <Providers>
+          <GlobalWrapper>{children}</GlobalWrapper>
+        </Providers>
       </body>
     </html>
   );
