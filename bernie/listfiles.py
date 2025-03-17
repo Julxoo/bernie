@@ -29,7 +29,7 @@ def save_to_text(data, output_file):
             f.write(file['content'] + "\n\n")
 
 if __name__ == "__main__":
-    directory = "./"
+    directory = "./src/app/dashboard/admin"
     output_file = "files_content.txt"
     
     excluded_files = {
