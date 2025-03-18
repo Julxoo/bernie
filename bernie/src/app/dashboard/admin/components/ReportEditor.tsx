@@ -8,9 +8,11 @@ import {
   addCasino,
   removeCasino,
   renameCasino,
+  formatDateFr,
 } from "../constants";
 import { saveReport, generateExcel } from "../services/reportsService";
 import { CasinoReport } from "../types";
+import DatePickerInput from "./DatePickerInput";
 
 interface ReportEditorProps {
   activeReport: CasinoReport;
@@ -50,16 +52,21 @@ const ReportEditor: React.FC<ReportEditorProps> = ({
     });
   };
 
-  // Mettre à jour les métadonnées (mois/année)
-  const handleMetadataChange = (
-    field: string,
-    value: string | number
-  ): void => {
+  // Mettre à jour la date du rapport
+  const handleDateChange = (date: string): void => {
+    const newDate = new Date(date);
+    const day = newDate.getDate();
+    const month = MONTHS[newDate.getMonth()];
+    const year = newDate.getFullYear();
+    
     setActiveReport((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
-        [field]: value,
+        date,
+        day,
+        month,
+        year,
       };
     });
   };
@@ -258,108 +265,109 @@ const ReportEditor: React.FC<ReportEditorProps> = ({
 
   return (
     <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
-      {/* En-tête et boutons d'action */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-xl font-semibold capitalize">
-            Rapport {activeReport.month} {activeReport.year}
+      {/* Barre d'actions */}
+      <div className="mb-6 flex flex-wrap justify-between items-center gap-4">
+        <div className="flex-1">
+          <h2 className="text-xl font-semibold">
+            Rapport du {formatDateFr(activeReport.date)}
           </h2>
           <p className="text-sm text-gray-400">
             {activeReport.id
-              ? "Modification du rapport"
-              : "Création d'un nouveau rapport"}
+              ? `Dernière modification: ${new Date(
+                  activeReport.created_at
+                ).toLocaleDateString("fr-FR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}`
+              : "Nouveau rapport - Non sauvegardé"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExportExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-[#ECECEC] rounded-lg hover:bg-gray-600 transition-colors"
-          >
-            <Download size={16} />
-            Exporter en Excel
-          </button>
+        <div className="flex gap-3">
           <button
             onClick={handleSaveReport}
-            className="flex items-center gap-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200 border border-[#424242]"
             disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-[#424242] hover:bg-[#525252] text-white rounded-lg transition-colors disabled:opacity-50"
           >
             <Save size={16} />
-            {isLoading ? "Sauvegarde..." : "Sauvegarder"}
+            Sauvegarder
+          </button>
+          <button
+            onClick={handleExportExcel}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-[#323232] hover:bg-[#424242] text-white rounded-lg transition-colors disabled:opacity-50"
+          >
+            <Download size={16} />
+            Exporter
           </button>
         </div>
       </div>
 
       {/* Métadonnées du rapport */}
-      <div className="bg-[#1a1a1a] p-4 rounded-lg mb-6">
+      <div className="mb-6 p-4 bg-[#1a1a1a] rounded-lg border border-[#424242]">
+        <h3 className="text-lg font-medium mb-4">Informations du rapport</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <DatePickerInput
+            label="Date du rapport"
+            value={activeReport.date}
+            onChange={handleDateChange}
+            disabled={isLoading}
+          />
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">
-              Mois
-            </label>
-            <select
-              value={activeReport.month}
-              onChange={(e) => handleMetadataChange("month", e.target.value)}
-              className="w-full p-2 rounded bg-[#212121] border border-[#424242] text-white"
-            >
-              {MONTHS.map((month) => (
-                <option key={month} value={month}>
-                  {month}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">
-              Année
+            <label className="block mb-2 text-sm font-medium text-gray-300">
+              Nom du modèle
             </label>
             <input
-              type="number"
-              value={activeReport.year}
+              type="text"
+              value={activeReport.template_name}
               onChange={(e) =>
-                handleMetadataChange(
-                  "year",
-                  parseInt(e.target.value) || new Date().getFullYear()
-                )
+                setActiveReport((prev) => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    template_name: e.target.value,
+                  };
+                })
               }
-              className="w-full p-2 rounded bg-[#212121] border border-[#424242] text-white"
-              min="2020"
-              max="2030"
+              className="w-full p-2.5 bg-[#171717] border border-[#424242] text-white rounded-lg"
+              disabled={isLoading}
             />
           </div>
         </div>
       </div>
 
       {/* Gestion des casinos */}
-      <div className="mb-6 bg-[#1a1a1a] p-4 rounded-lg">
-        <h3 className="text-lg font-medium mb-3">Gestion des casinos</h3>
-
-        {/* Ajouter un nouveau casino */}
-        <div className="flex items-center gap-2 mb-4">
+      <div className="mb-8">
+        <h3 className="text-lg font-medium mb-4">Gestion des casinos</h3>
+        <div className="flex gap-2 mb-4">
           <input
             type="text"
             value={newCasinoName}
             onChange={(e) => setNewCasinoName(e.target.value)}
             placeholder="Nom du nouveau casino"
-            className="flex-1 p-2 rounded bg-[#212121] border border-[#424242] text-white"
+            className="flex-1 p-2.5 bg-[#171717] border border-[#424242] text-white rounded-lg"
+            disabled={isLoading}
           />
           <button
             onClick={handleAddCasino}
-            className="flex items-center gap-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200 border border-[#424242]"
+            disabled={isLoading || newCasinoName.trim() === ""}
+            className="flex items-center gap-2 px-4 py-2 bg-[#424242] hover:bg-[#525252] text-white rounded-lg transition-colors disabled:opacity-50"
           >
             <Plus size={16} />
             Ajouter
           </button>
         </div>
 
-        {/* Liste des casinos avec options de modification/suppression */}
-        <div className="mt-4 border border-[#424242] rounded-lg overflow-hidden">
-          <table className="w-full">
+        <div className="overflow-x-auto">
+          <table className="w-full border border-[#2a2a2a] rounded-lg overflow-hidden">
             <thead className="bg-[#212121]">
               <tr>
-                <th className="text-left p-3 border-b border-[#2a2a2a]">
-                  Nom du casino
+                <th className="text-left py-3 px-4 border-b border-[#2a2a2a]">
+                  Casino
                 </th>
-                <th className="text-right p-3 border-b border-[#2a2a2a]">
+                <th className="text-right py-3 px-4 border-b border-[#2a2a2a]">
                   Actions
                 </th>
               </tr>
@@ -367,31 +375,31 @@ const ReportEditor: React.FC<ReportEditorProps> = ({
             <tbody>
               {CASINOS.map((casino) => (
                 <tr key={casino} className="border-b border-[#2a2a2a]">
-                  <td className="p-3">
+                  <td className="py-3 px-4 font-medium">
                     {editingCasino === casino ? (
                       <input
                         type="text"
                         value={editCasinoName}
                         onChange={(e) => setEditCasinoName(e.target.value)}
-                        className="w-full p-2 rounded bg-[#212121] border border-[#424242] text-white"
+                        className="w-full p-2 bg-[#171717] border border-[#2a2a2a] text-white rounded"
                         autoFocus
                       />
                     ) : (
-                      <span className="font-medium">{casino}</span>
+                      casino
                     )}
                   </td>
-                  <td className="p-3 text-right">
+                  <td className="py-3 px-4 text-right">
                     {editingCasino === casino ? (
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={confirmEditCasino}
+                          onClick={() => confirmEditCasino()}
                           className="p-1 rounded-full hover:bg-green-800/30 text-green-500"
                           title="Confirmer"
                         >
                           <Check size={16} />
                         </button>
                         <button
-                          onClick={cancelEditCasino}
+                          onClick={() => cancelEditCasino()}
                           className="p-1 rounded-full hover:bg-red-800/30 text-red-500"
                           title="Annuler"
                         >

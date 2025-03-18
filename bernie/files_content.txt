@@ -12,11 +12,57 @@ export interface CasinoReport {
   user_id?: string;
   template_id: number;
   template_name: string;
+  day: number;
   month: string;
   year: number;
+  date: string; // Format: YYYY-MM-DD
   created_at: string;
   data: {
     [key: string]: string;
+  };
+}
+
+export interface DateRange {
+  startDate: string;
+  endDate: string;
+}
+
+export interface StatFilter {
+  dateRange: DateRange;
+  metrics: string[];
+  casinos: string[];
+  groupBy: "day" | "week" | "month" | "year";
+}
+
+export interface Stat {
+  date: string;
+  [key: string]: string | number;
+}
+
+export interface StatResponse {
+  data: Stat[];
+  previousPeriod?: {
+    deposits: number;
+    profits: number;
+    signups: number;
+    ftd: number;
+    ngr: number;
+  };
+  meta?: {
+    total: number;
+    page: number;
+    pageSize: number;
+  };
+}
+
+export interface DailyReport {
+  id?: string | number;
+  date: string; // Format: YYYY-MM-DD
+  year: number;
+  month: string;
+  day: number;
+  data: {
+    [key: string]: string | number;
   };
 }
 
@@ -77,6 +123,48 @@ export const MONTHS: string[] = [
   "décembre",
 ];
 
+// Date Utilities
+export function formatDate(date: Date): string {
+  return date.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+export function formatDateFr(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+}
+
+export function parseDate(dateString: string): Date {
+  return new Date(dateString);
+}
+
+export function getCurrentDateFormatted(): string {
+  return formatDate(new Date());
+}
+
+export function getDayFromDate(dateString: string): number {
+  return new Date(dateString).getDate();
+}
+
+export function getMonthFromDate(dateString: string): string {
+  return MONTHS[new Date(dateString).getMonth()];
+}
+
+export function getYearFromDate(dateString: string): number {
+  return new Date(dateString).getFullYear();
+}
+
+// Grouping options for statistics
+export const GROUP_BY_OPTIONS = [
+  { value: "day", label: "Jour" },
+  { value: "week", label: "Semaine" },
+  { value: "month", label: "Mois" },
+  { value: "year", label: "Année" },
+];
+
 
 ===== page.tsx =====
 Chemin : ./src/app/dashboard/admin/page.tsx
@@ -89,16 +177,34 @@ import { useRouter } from "next/navigation";
 import AccessDenied from "./components/AccessDenied";
 import ReportList from "./components/ReportList";
 import ReportEditor from "./components/ReportEditor";
-import { fetchReports } from "./services/reportsService";
+import { fetchReports, saveReport, generateExcel } from "./services/reportsService";
 import { CasinoReport } from "./types";
+import { StatisticsPanel } from "./components/StatisticsPanel";
+import { 
+  PlusCircle, 
+  ArrowLeft, 
+  BarChart2, 
+  SaveIcon, 
+  Download, 
+  Search,
+  Calendar,
+  Trash,
+  ChevronDown
+} from "lucide-react";
+import { AdminCard } from "./components/ui/AdminCard";
+import { AdminButton } from "./components/ui/AdminButton";
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("reports");
   const [reports, setReports] = useState<CasinoReport[]>([]);
-  const [activeReport, setActiveReport] = useState<CasinoReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentReport, setCurrentReport] = useState<CasinoReport | null>(null);
+  const [showEmptyState, setShowEmptyState] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Charger les rapports au chargement
   useEffect(() => {
@@ -112,8 +218,11 @@ export default function AdminPage() {
         setIsLoading(true);
         const data = await fetchReports();
         setReports(data);
+        // Si aucun rapport n'existe, afficher l'état vide
+        setShowEmptyState(data.length === 0);
       } catch (err) {
         console.error('Erreur lors du chargement des rapports:', err);
+        setShowEmptyState(true);
       } finally {
         setIsLoading(false);
       }
@@ -124,8 +233,125 @@ export default function AdminPage() {
     }
   }, [session, status, router]);
 
+  // Créer un nouveau rapport vide
+  const handleCreateReport = () => {
+    const today = new Date();
+    const day = today.getDate();
+    const monthIndex = today.getMonth();
+    const year = today.getFullYear();
+    const date = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
+
+    // Créer un objet rapport vide
+    const emptyReport: CasinoReport = {
+      template_id: 1,
+      template_name: "Rapport quotidien",
+      day,
+      month: ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"][monthIndex],
+      year,
+      date,
+      created_at: new Date().toISOString(),
+      data: {},
+    };
+
+    setCurrentReport(emptyReport);
+    setIsEditing(true);
+  };
+
+  const handleEditReport = (report: CasinoReport) => {
+    setCurrentReport(report);
+    setIsEditing(true);
+  };
+
+  const handleCloseEditor = () => {
+    setIsEditing(false);
+    setCurrentReport(null);
+  };
+
+  // Sauvegarder un rapport depuis l'en-tête
+  const handleSaveReportFromHeader = async () => {
+    if (!currentReport) return;
+    
+    try {
+      setIsLoading(true);
+      const savedReport = await saveReport(currentReport);
+      
+      setCurrentReport(savedReport);
+      
+      // Mettre à jour la liste des rapports
+      setReports((prev) => {
+        if (prev.find((r) => r.id === savedReport.id)) {
+          return prev.map((r) => (r.id === savedReport.id ? savedReport : r));
+        } else {
+          return [savedReport, ...prev];
+        }
+      });
+      
+      // Notification de succès
+      alert("Rapport sauvegardé avec succès!");
+      
+      // Retourner à la liste des rapports
+      setIsEditing(false);
+      setCurrentReport(null);
+    } catch (err) {
+      console.error("Erreur lors de la sauvegarde du rapport:", err);
+      alert("Une erreur est survenue lors de la sauvegarde du rapport.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Exporter un rapport en Excel
+  const handleExportReportFromHeader = () => {
+    if (!currentReport) return;
+    generateExcel(currentReport);
+  };
+
+  // Supprimer un rapport
+  const handleDeleteReport = async (reportId: number) => {
+    if (!reportId || !window.confirm("Êtes-vous sûr de vouloir supprimer ce rapport ?")) return;
+    
+    try {
+      setIsLoading(true);
+      // Appeler l'API pour supprimer le rapport
+      await fetch(`/api/casino-reports/${reportId}`, {
+        method: 'DELETE',
+      });
+      
+      // Mettre à jour la liste des rapports
+      setReports(prev => prev.filter(r => r.id !== reportId));
+      
+      // Notification de succès
+      alert("Rapport supprimé avec succès!");
+    } catch (err) {
+      console.error("Erreur lors de la suppression du rapport:", err);
+      alert("Une erreur est survenue lors de la suppression du rapport.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Filtrer les rapports par recherche
+  const filteredReports = reports.filter(report => {
+    const searchLower = searchTerm.toLowerCase();
+    const dateStr = new Date(report.date).toLocaleDateString('fr-FR');
+    return dateStr.includes(searchLower) || 
+           report.month.toLowerCase().includes(searchLower) ||
+           String(report.year).includes(searchLower);
+  });
+
+  // Trier les rapports par date
+  const sortedReports = [...filteredReports].sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+  });
+
   if (status === "loading") {
-    return <div>Chargement...</div>;
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#121212]">
+        <div className="h-12 w-12 border-4 border-t-blue-500 border-blue-500/30 rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
   if (session?.user?.role !== "admin") {
@@ -133,56 +359,274 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 text-gray-200 min-h-screen">
-      <header className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-semibold">Administration</h1>
-        <p className="text-sm text-gray-400 mt-1">
-          Gérez vos rapports mensuels de performance
-        </p>
-      </header>
+    <div className="min-h-screen bg-[#121212]">
+      {/* Barre de navigation latérale (à implémenter) */}
+      
+      {/* Contenu principal */}
+      <main className="w-full">
+        {/* En-tête persistant */}
+        <header className="bg-[#1a1a1a] py-4 px-6 shadow-md border-b border-[#323232]">
+          <div className="container mx-auto flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-white">
+                {isEditing 
+                  ? currentReport?.id 
+                    ? `Modifier le rapport - ${new Date(currentReport.date).toLocaleDateString('fr-FR')}`
+                    : "Nouveau rapport"
+                  : "Dashboard Admin"
+                }
+              </h1>
+              <p className="text-sm text-gray-400">
+                {isEditing 
+                  ? `${currentReport?.id ? 'Modification' : 'Création'} d'un rapport de performance`
+                  : "Gérez vos rapports et analysez les statistiques"
+                }
+              </p>
+            </div>
 
-      <div className="mb-6">
-        <div className="flex border-b border-[#424242]">
-          <button
-            className={`px-4 py-2 font-medium ${
-              activeTab === "reports" ? "text-white border-b-2 border-white" : "text-gray-400"
-            }`}
-            onClick={() => setActiveTab("reports")}
-          >
-            Rapports sauvegardés
-          </button>
-          {activeReport && (
-            <button
-              className={`px-4 py-2 font-medium ${
-                activeTab === "edit" ? "text-white border-b-2 border-white" : "text-gray-400"
-              }`}
-              onClick={() => setActiveTab("edit")}
-            >
-              Édition
-            </button>
+            <div className="flex items-center gap-3">
+              {isEditing ? (
+                <>
+                  <AdminButton
+                    variant="secondary"
+                    onClick={handleCloseEditor}
+                    className="px-3 py-2"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    <span className="hidden sm:inline">Retour</span>
+                  </AdminButton>
+                  
+                  <AdminButton
+                    variant="secondary"
+                    onClick={handleExportReportFromHeader}
+                    className="px-3 py-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span className="hidden sm:inline">Exporter</span>
+                  </AdminButton>
+                  
+                  <AdminButton
+                    variant="primary"
+                    onClick={handleSaveReportFromHeader}
+                    loading={isLoading}
+                    className="px-4 py-2"
+                  >
+                    <SaveIcon className="h-4 w-4" />
+                    <span>Enregistrer</span>
+                  </AdminButton>
+                </>
+              ) : (
+                <AdminButton 
+                  variant="primary"
+                  onClick={handleCreateReport}
+                  className="px-4 py-2"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  <span>Nouveau rapport</span>
+                </AdminButton>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Navigation par onglets - visible uniquement si pas en mode édition */}
+        {!isEditing && (
+          <nav className="bg-[#1d1d1d] border-b border-[#323232]">
+            <div className="container mx-auto">
+              <div className="flex">
+                <button
+                  className={`px-6 py-4 font-medium text-sm relative transition ${
+                    activeTab === "reports" 
+                      ? "text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-blue-500" 
+                      : "text-gray-400 hover:text-gray-300"
+                  }`}
+                  onClick={() => setActiveTab("reports")}
+                >
+                  Rapports
+                </button>
+                <button
+                  className={`px-6 py-4 font-medium text-sm relative transition flex items-center gap-2 ${
+                    activeTab === "stats" 
+                      ? "text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-blue-500" 
+                      : "text-gray-400 hover:text-gray-300"
+                  }`}
+                  onClick={() => setActiveTab("stats")}
+                >
+                  <BarChart2 className="h-4 w-4" />
+                  Statistiques
+                </button>
+              </div>
+            </div>
+          </nav>
+        )}
+
+        {/* Contenu principal */}
+        <div className="container mx-auto py-6 px-4">
+          {isEditing ? (
+            <AdminCard className="shadow-lg">
+              {currentReport && (
+                <ReportEditor
+                  activeReport={currentReport}
+                  setActiveReport={setCurrentReport}
+                  setReports={setReports}
+                  isLoading={isLoading}
+                  setIsLoading={setIsLoading}
+                  onClose={handleCloseEditor}
+                  isInline={true}
+                />
+              )}
+            </AdminCard>
+          ) : (
+            <>
+              {activeTab === "reports" && (
+                <div className="space-y-6">
+                  {/* Barre d'outils: recherche et filtres */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 bg-[#1a1a1a] p-4 rounded-lg border border-[#323232]">
+                    <div className="relative flex-grow max-w-md">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Rechercher un rapport..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 bg-[#252525] border border-[#323232] rounded-md text-white text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-400">Trier par:</span>
+                      <button
+                        onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                        className="flex items-center gap-1 px-3 py-2 bg-[#252525] border border-[#323232] rounded-md text-white text-sm hover:bg-[#2a2a2a]"
+                      >
+                        <Calendar className="h-4 w-4" />
+                        <span>Date</span>
+                        <ChevronDown className={`h-3 w-3 text-gray-400 ${sortOrder === "asc" ? "rotate-180" : ""} transition-transform`} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Liste des rapports */}
+                  {isLoading ? (
+                    <div className="flex justify-center py-10">
+                      <div className="h-10 w-10 border-4 border-t-blue-500 border-blue-500/30 rounded-full animate-spin"></div>
+                    </div>
+                  ) : showEmptyState || sortedReports.length === 0 ? (
+                    <div className="bg-[#1A1A1A] rounded-xl p-10 border border-[#323232] text-center">
+                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10">
+                        <Calendar className="h-8 w-8 text-blue-400" />
+                      </div>
+                      <h3 className="mb-2 text-xl font-semibold text-white">Aucun rapport disponible</h3>
+                      <p className="mb-6 text-gray-400">
+                        {searchTerm 
+                          ? "Aucun rapport ne correspond à votre recherche. Essayez avec d'autres termes."
+                          : "Commencez par créer votre premier rapport de performance."
+                        }
+                      </p>
+                      {!searchTerm && (
+                        <AdminButton variant="primary" onClick={handleCreateReport}>
+                          <PlusCircle className="h-4 w-4" />
+                          Créer un rapport
+                        </AdminButton>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {sortedReports.map(report => (
+                        <div 
+                          key={report.id}
+                          className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#1A1A1A] hover:bg-[#1e1e1e] p-5 rounded-xl border border-[#323232] hover:border-[#424242] transition-colors cursor-pointer"
+                        >
+                          <div className="flex-grow" onClick={() => handleEditReport(report)}>
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <h3 className="text-lg font-semibold text-white">
+                                Rapport du {new Date(report.date).toLocaleDateString('fr-FR')}
+                              </h3>
+                              <span className="px-2 py-1 text-xs rounded-full bg-blue-500/10 text-blue-400">
+                                {report.template_name}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                              {/* KPIs du rapport */}
+                              {(() => {
+                                // Calculer les totaux
+                                let totalDeposit = 0;
+                                let totalSignups = 0;
+                                let totalFtd = 0;
+                                let totalProfits = 0;
+                                
+                                Object.entries(report.data).forEach(([key, value]) => {
+                                  if (key.includes('_TOTAL_DEPOSIT')) totalDeposit += parseFloat(value || '0');
+                                  if (key.includes('_SIGNUP')) totalSignups += parseInt(value || '0');
+                                  if (key.includes('_FTD')) totalFtd += parseInt(value || '0');
+                                  if (key.includes('_PROFITS')) totalProfits += parseFloat(value || '0');
+                                });
+
+                                return (
+                                  <>
+                                    <div className="bg-[#252525] p-3 rounded-lg">
+                                      <p className="text-xs text-gray-400">Total des dépôts</p>
+                                      <p className="text-lg font-medium text-white">{totalDeposit.toLocaleString('fr-FR', {minimumFractionDigits: 2})} €</p>
+                                    </div>
+                                    <div className="bg-[#252525] p-3 rounded-lg">
+                                      <p className="text-xs text-gray-400">Inscriptions</p>
+                                      <p className="text-lg font-medium text-white">{totalSignups}</p>
+                                    </div>
+                                    <div className="bg-[#252525] p-3 rounded-lg">
+                                      <p className="text-xs text-gray-400">Premier dépôt (FTD)</p>
+                                      <p className="text-lg font-medium text-white">{totalFtd}</p>
+                                    </div>
+                                    <div className="bg-[#252525] p-3 rounded-lg">
+                                      <p className="text-xs text-gray-400">Profits</p>
+                                      <p className="text-lg font-medium text-white">{totalProfits.toLocaleString('fr-FR', {minimumFractionDigits: 2})} €</p>
+                                    </div>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+
+                          {/* Actions sur le rapport */}
+                          <div className="flex sm:flex-col gap-2 sm:self-start mt-4 sm:mt-0">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteReport(report.id as number);
+                              }}
+                              className="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded"
+                              title="Supprimer le rapport"
+                            >
+                              <Trash className="h-4 w-4" />
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (report.id) {
+                                  const reportToExport = { ...report };
+                                  generateExcel(reportToExport);
+                                }
+                              }}
+                              className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded"
+                              title="Exporter en Excel"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {activeTab === "stats" && (
+                <StatisticsPanel />
+              )}
+            </>
           )}
         </div>
-      </div>
-
-      {activeTab === "reports" && (
-        <ReportList 
-          reports={reports}
-          isLoading={isLoading}
-          setReports={setReports}
-          setActiveReport={setActiveReport}
-          setActiveTab={setActiveTab}
-        />
-      )}
-      
-      {activeTab === "edit" && activeReport && (
-        <ReportEditor
-          activeReport={activeReport}
-          setActiveReport={setActiveReport}
-          setReports={setReports}
-          isLoading={isLoading}
-          setIsLoading={setIsLoading}
-        />
-      )}
+      </main>
     </div>
   );
 }
@@ -191,8 +635,16 @@ export default function AdminPage() {
 Chemin : ./src/app/dashboard/admin/services/reportsService.ts
 // src/app/dashboard/admin/services/reportsService.ts
 import * as XLSX from "xlsx";
-import { CASINOS, MONTHS, addCasino } from "../constants";
-import { CasinoReport } from "../types";
+import { 
+  CASINOS, 
+  MONTHS, 
+  addCasino, 
+  formatDate, 
+  getDayFromDate, 
+  getMonthFromDate, 
+  getYearFromDate 
+} from "../constants";
+import { CasinoReport, DateRange, StatFilter, StatResponse } from "../types";
 import { Session } from "next-auth";
 
 // Fonction pour récupérer tous les rapports
@@ -204,18 +656,31 @@ export async function fetchReports(): Promise<CasinoReport[]> {
   return await response.json();
 }
 
+// Fonction pour récupérer les rapports dans une plage de dates
+export async function fetchReportsByDateRange(dateRange: DateRange): Promise<CasinoReport[]> {
+  const response = await fetch(`/api/casino-reports/range?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`);
+  if (!response.ok) {
+    throw new Error('Erreur lors du chargement des rapports par plage de dates');
+  }
+  return await response.json();
+}
+
 // Fonction pour créer un nouveau rapport
 export function createNewReport(session?: Session | null): CasinoReport {
   const currentDate = new Date();
+  const formattedDate = formatDate(currentDate);
+  const currentDay = currentDate.getDate();
   const currentMonth = MONTHS[currentDate.getMonth()];
   const currentYear = currentDate.getFullYear();
   
   // Structure initiale du rapport
   const newReportData: CasinoReport = {
     template_id: 1,
-    template_name: "Rapport Performances Mensuelles",
+    template_name: "Rapport Performances Quotidiennes",
+    day: currentDay,
     month: currentMonth,
     year: currentYear,
+    date: formattedDate,
     created_at: new Date().toISOString(),
     data: {},
     user_id: session?.user?.id
@@ -240,7 +705,7 @@ export async function saveReport(report: CasinoReport): Promise<CasinoReport> {
     report.template_id = 1;
   }
   if (!report.template_name) {
-    report.template_name = "Rapport Performances Mensuelles";
+    report.template_name = "Rapport Performances Quotidiennes";
   }
 
   // Si le rapport a un ID, mise à jour, sinon création
@@ -288,7 +753,7 @@ export function generateExcel(report: CasinoReport): void {
   
   // En-tête de la feuille
   const sheetData = [
-    [`Rapport mensuel - ${report.month} ${report.year}`],
+    [`Rapport quotidien - ${report.day} ${report.month} ${report.year}`],
     []
   ];
   
@@ -393,45 +858,169 @@ export function generateExcel(report: CasinoReport): void {
   XLSX.writeFile(wb, `Rapport_${report.month}_${report.year}.xlsx`);
 }
 
+// Fonction pour récupérer les statistiques
+export async function fetchStats(filter: StatFilter): Promise<StatResponse> {
+  try {
+    const queryParams = new URLSearchParams({
+      startDate: filter.dateRange.startDate,
+      endDate: filter.dateRange.endDate,
+      groupBy: filter.groupBy,
+      metrics: filter.metrics.join(','),
+      casinos: filter.casinos.join(','),
+    });
+
+    const response = await fetch(`/api/stats?${queryParams.toString()}`);
+    
+    if (!response.ok) {
+      throw new Error(`Erreur API: ${response.status}`);
+    }
+    
+    // Pour le développement, simuler des données en attendant l'API réelle
+    if (process.env.NODE_ENV === 'development') {
+      return generateMockStats(filter);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Erreur lors de la récupération des statistiques:', error);
+    return generateMockStats(filter); // En cas d'erreur, on renvoie des données simulées
+  }
+}
+
+function generateMockStats(filter: StatFilter): StatResponse {
+  const { startDate, endDate } = filter.dateRange;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  const dataPoints: any[] = [];
+  const currentDate = new Date(start);
+  
+  // Générer des données pour chaque jour/semaine/mois selon le groupBy
+  while (currentDate <= end) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    
+    const point: any = {
+      date: dateStr,
+    };
+    
+    // Pour chaque casino et métrique, générer des données aléatoires
+    filter.casinos.forEach(casino => {
+      filter.metrics.forEach(metric => {
+        // Les données varient selon les métriques
+        let value = 0;
+        if (metric === 'TOTAL_DEPOSIT') {
+          value = Math.floor(Math.random() * 10000) + 500;
+        } else if (metric === 'PROFITS') {
+          value = Math.floor(Math.random() * 5000) + 100;
+        } else if (metric === 'SIGNUP') {
+          value = Math.floor(Math.random() * 50) + 5;
+        } else if (metric === 'FTD') {
+          value = Math.floor(Math.random() * 20) + 1;
+        } else if (metric === 'NGR') {
+          value = Math.floor(Math.random() * 8000) + 200;
+        }
+        
+        // Pour les données agrégées par jour
+        if (filter.groupBy === 'day') {
+          point[metric] = (point[metric] || 0) + value;
+          // Ajouter également des données par casino
+          point[`${casino}_${metric}`] = value;
+        } else {
+          // Pour les données agrégées (semaine, mois, année)
+          value *= (filter.groupBy === 'week' ? 7 : filter.groupBy === 'month' ? 30 : 365);
+          point[metric] = (point[metric] || 0) + value;
+          point[`${casino}_${metric}`] = value;
+        }
+      });
+    });
+    
+    dataPoints.push(point);
+    
+    // Avancer à la prochaine période selon le groupBy
+    if (filter.groupBy === 'day') {
+      currentDate.setDate(currentDate.getDate() + 1);
+    } else if (filter.groupBy === 'week') {
+      currentDate.setDate(currentDate.getDate() + 7);
+    } else if (filter.groupBy === 'month') {
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    } else {
+      currentDate.setFullYear(currentDate.getFullYear() + 1);
+    }
+  }
+  
+  // Générer des données pour la période précédente
+  const previousPeriod = {
+    deposits: Math.floor(Math.random() * 50000) + 10000,
+    profits: Math.floor(Math.random() * 25000) + 5000,
+    signups: Math.floor(Math.random() * 500) + 50,
+    ftd: Math.floor(Math.random() * 200) + 20,
+    ngr: Math.floor(Math.random() * 40000) + 8000,
+  };
+  
+  return {
+    data: dataPoints,
+    previousPeriod,
+    meta: {
+      total: dataPoints.length,
+      page: 1,
+      pageSize: 100
+    }
+  };
+}
+
 // Fonction pour importer un fichier Excel
 export function importExcel(file: File): Promise<CasinoReport> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        
-        // Récupérer la première feuille
+        const workbook = XLSX.read(data, { type: "array" });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
         
-        // Extraire le mois et l'année du titre
-        let month = "janvier";
-        let year = new Date().getFullYear();
+        // Extraire les informations du rapport depuis le titre
+        const titleRow = jsonData[0][0] as string;
+        let date = new Date();
         
-        if (jsonData[0] && jsonData[0][0]) {
-          const titleText = String(jsonData[0][0]);
-          const titleMatch = titleText.match(/(\w+)\s+(\d{4})/);
-          if (titleMatch) {
-            const potentialMonth = titleMatch[1].toLowerCase();
-            if (MONTHS.includes(potentialMonth)) {
-              month = potentialMonth;
-            }
+        // Si c'est un ancien format (mensuel)
+        if (titleRow.includes("Rapport mensuel")) {
+          const matches = titleRow.match(/Rapport mensuel - (\w+) (\d{4})/);
+          if (matches && matches.length >= 3) {
+            const monthName = matches[1];
+            const year = parseInt(matches[2]);
+            const monthIndex = MONTHS.indexOf(monthName.toLowerCase());
             
-            const potentialYear = parseInt(titleMatch[2]);
-            if (!isNaN(potentialYear) && potentialYear > 2000 && potentialYear < 2100) {
-              year = potentialYear;
+            if (monthIndex !== -1) {
+              date = new Date(year, monthIndex, 1);
+            }
+          }
+        } else if (titleRow.includes("Rapport quotidien")) {
+          // Nouveau format (quotidien)
+          const matches = titleRow.match(/Rapport quotidien - (\d{1,2}) (\w+) (\d{4})/);
+          if (matches && matches.length >= 4) {
+            const day = parseInt(matches[1]);
+            const monthName = matches[2];
+            const year = parseInt(matches[3]);
+            const monthIndex = MONTHS.indexOf(monthName.toLowerCase());
+            
+            if (monthIndex !== -1) {
+              date = new Date(year, monthIndex, day);
             }
           }
         }
         
-        // Initialiser un nouveau rapport
-        const newReportData: CasinoReport = {
+        const formattedDate = formatDate(date);
+        
+        // Créer la structure de rapport
+        const importedReport: CasinoReport = {
           template_id: 1,
-          template_name: "Rapport Performances Mensuelles",
-          month: month,
-          year: year,
+          template_name: "Rapport Performances Quotidiennes",
+          day: getDayFromDate(formattedDate),
+          month: getMonthFromDate(formattedDate),
+          year: getYearFromDate(formattedDate),
+          date: formattedDate,
           created_at: new Date().toISOString(),
           data: {}
         };
@@ -460,9 +1049,9 @@ export function importExcel(file: File): Promise<CasinoReport> {
             const ftd = parseInt(String(row[3]) || "0");
             
             // Stocker les valeurs
-            newReportData.data[`${casino}_TOTAL_DEPOSIT`] = deposit.toString();
-            newReportData.data[`${casino}_SIGNUP`] = signup.toString();
-            newReportData.data[`${casino}_FTD`] = ftd.toString();
+            importedReport.data[`${casino}_TOTAL_DEPOSIT`] = deposit.toString();
+            importedReport.data[`${casino}_SIGNUP`] = signup.toString();
+            importedReport.data[`${casino}_FTD`] = ftd.toString();
           }
         }
         
@@ -496,21 +1085,345 @@ export function importExcel(file: File): Promise<CasinoReport> {
               const profits = parseFloat(String(row[2]).replace(/[^\d.-]/g, '') || "0");
               
               // Stocker les valeurs
-              newReportData.data[`${casino}_NGR`] = ngr.toString();
-              newReportData.data[`${casino}_PROFITS`] = profits.toString();
+              importedReport.data[`${casino}_NGR`] = ngr.toString();
+              importedReport.data[`${casino}_PROFITS`] = profits.toString();
             }
           }
         }
         
-        resolve(newReportData);
-      } catch (err) {
-        reject(err);
+        resolve(importedReport);
+      } catch (error) {
+        reject(error);
       }
     };
-    reader.onerror = (e) => reject(e);
+    
+    reader.onerror = (error) => {
+      reject(error);
+    };
+    
     reader.readAsArrayBuffer(file);
   });
 }
+
+===== StatsPanel.tsx =====
+Chemin : ./src/app/dashboard/admin/components/StatsPanel.tsx
+import React, { useState, useEffect } from "react";
+import { BarChart, AreaChart, Calendar, Filter } from "lucide-react";
+import { StatFilter, DateRange } from "../types";
+import { CASINOS, METRICS, GROUP_BY_OPTIONS, formatDateFr } from "../constants";
+import DatePickerInput from "./DatePickerInput";
+import { fetchStats } from "../services/reportsService";
+
+interface StatsPanelProps {
+  className?: string;
+}
+
+const StatsPanel: React.FC<StatsPanelProps> = ({ className = "" }) => {
+  // Initialiser les dates de début et de fin (30 derniers jours par défaut)
+  const today = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+  
+  const defaultDateRange: DateRange = {
+    startDate: thirtyDaysAgo.toISOString().split('T')[0],
+    endDate: today.toISOString().split('T')[0],
+  };
+  
+  const [filter, setFilter] = useState<StatFilter>({
+    dateRange: defaultDateRange,
+    metrics: ["TOTAL_DEPOSIT", "PROFITS"],
+    casinos: [...CASINOS],
+    groupBy: "day",
+  });
+  
+  const [stats, setStats] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"line" | "bar">("line");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  
+  // Charger les statistiques lors des changements de filtre
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchStats(filter);
+        setStats(data);
+      } catch (err) {
+        console.error("Erreur lors du chargement des statistiques:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadStats();
+  }, [filter]);
+  
+  // Mettre à jour les filtres
+  const handleFilterChange = (
+    field: keyof StatFilter,
+    value: string | string[] | DateRange
+  ) => {
+    setFilter(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+  
+  // Gérer le changement de date
+  const handleDateChange = (field: "startDate" | "endDate", value: string) => {
+    setFilter(prev => ({
+      ...prev,
+      dateRange: {
+        ...prev.dateRange,
+        [field]: value,
+      },
+    }));
+  };
+  
+  // Gérer la sélection/désélection de métriques
+  const handleMetricToggle = (metricId: string) => {
+    setFilter(prev => {
+      const metrics = [...prev.metrics];
+      const index = metrics.indexOf(metricId);
+      
+      if (index === -1) {
+        metrics.push(metricId);
+      } else {
+        metrics.splice(index, 1);
+      }
+      
+      return { ...prev, metrics };
+    });
+  };
+  
+  // Gérer la sélection/désélection de casinos
+  const handleCasinoToggle = (casino: string) => {
+    setFilter(prev => {
+      const casinos = [...prev.casinos];
+      const index = casinos.indexOf(casino);
+      
+      if (index === -1) {
+        casinos.push(casino);
+      } else {
+        casinos.splice(index, 1);
+      }
+      
+      return { ...prev, casinos };
+    });
+  };
+  
+  // Calculer les totaux pour l'affichage en haut
+  const calculateTotals = () => {
+    if (!stats || !stats.data) return { totalDeposit: 0, totalProfits: 0, totalSignups: 0, totalFtd: 0 };
+    
+    let totalDeposit = 0;
+    let totalProfits = 0;
+    let totalSignups = 0;
+    let totalFtd = 0;
+    
+    stats.data.forEach((dataPoint: any) => {
+      totalDeposit += dataPoint.TOTAL_DEPOSIT || 0;
+      totalProfits += dataPoint.PROFITS || 0;
+      totalSignups += dataPoint.SIGNUP || 0;
+      totalFtd += dataPoint.FTD || 0;
+    });
+    
+    return { totalDeposit, totalProfits, totalSignups, totalFtd };
+  };
+  
+  const totals = calculateTotals();
+  
+  // Obtenir le label pour l'axe X en fonction du groupBy
+  const getXAxisLabel = (date: string) => {
+    const d = new Date(date);
+    
+    switch (filter.groupBy) {
+      case "day":
+        return d.getDate().toString();
+      case "week":
+        return `S${Math.ceil((d.getDate() + new Date(d.getFullYear(), d.getMonth(), 1).getDay()) / 7)}`;
+      case "month":
+        return d.toLocaleDateString('fr-FR', { month: 'short' });
+      case "year":
+        return d.getFullYear().toString();
+      default:
+        return date;
+    }
+  };
+  
+  return (
+    <div className={`bg-[#171717] rounded-lg border border-[#424242] overflow-hidden ${className}`}>
+      <div className="flex items-center justify-between p-4 border-b border-[#424242]">
+        <h3 className="text-xl font-semibold">Statistiques</h3>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setActiveTab("line")}
+            className={`p-2 rounded-lg transition-colors ${
+              activeTab === "line" ? "bg-[#3a3a3a]" : "hover:bg-[#2a2a2a]"
+            }`}
+            title="Graphique en ligne"
+          >
+            <AreaChart size={16} />
+          </button>
+          <button
+            onClick={() => setActiveTab("bar")}
+            className={`p-2 rounded-lg transition-colors ${
+              activeTab === "bar" ? "bg-[#3a3a3a]" : "hover:bg-[#2a2a2a]"
+            }`}
+            title="Graphique en barres"
+          >
+            <BarChart size={16} />
+          </button>
+          <button
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className={`p-2 rounded-lg transition-colors ${
+              isFilterOpen ? "bg-[#3a3a3a]" : "hover:bg-[#2a2a2a]"
+            }`}
+            title="Filtres"
+          >
+            <Filter size={16} />
+          </button>
+        </div>
+      </div>
+      
+      {/* Période sélectionnée */}
+      <div className="flex items-center justify-between p-4 bg-[#1a1a1a] border-b border-[#424242]">
+        <div className="flex items-center gap-2">
+          <Calendar size={16} className="text-gray-400" />
+          <span className="text-sm font-medium">
+            {formatDateFr(filter.dateRange.startDate)} - {formatDateFr(filter.dateRange.endDate)}
+          </span>
+        </div>
+        <span className="text-sm text-gray-400">
+          Groupé par: {GROUP_BY_OPTIONS.find(opt => opt.value === filter.groupBy)?.label}
+        </span>
+      </div>
+      
+      {/* Filtres */}
+      {isFilterOpen && (
+        <div className="p-4 border-b border-[#424242] bg-[#1d1d1d]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <DatePickerInput
+              label="Date de début"
+              value={filter.dateRange.startDate}
+              onChange={(date) => handleDateChange("startDate", date)}
+              max={filter.dateRange.endDate}
+            />
+            <DatePickerInput
+              label="Date de fin"
+              value={filter.dateRange.endDate}
+              onChange={(date) => handleDateChange("endDate", date)}
+              min={filter.dateRange.startDate}
+            />
+          </div>
+          
+          <div className="mb-4">
+            <label className="block mb-2 text-sm font-medium text-gray-300">
+              Grouper par
+            </label>
+            <select
+              value={filter.groupBy}
+              onChange={(e) => handleFilterChange("groupBy", e.target.value)}
+              className="w-full p-2.5 bg-[#171717] border border-[#424242] text-white rounded-lg"
+            >
+              {GROUP_BY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-300">
+                Métriques
+              </label>
+              <div className="space-y-2">
+                {METRICS.map((metric) => (
+                  <label key={metric.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={filter.metrics.includes(metric.id)}
+                      onChange={() => handleMetricToggle(metric.id)}
+                      className="w-4 h-4 rounded bg-[#171717] border-[#424242]"
+                    />
+                    <span className="text-sm">{metric.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-300">
+                Casinos
+              </label>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {CASINOS.map((casino) => (
+                  <label key={casino} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={filter.casinos.includes(casino)}
+                      onChange={() => handleCasinoToggle(casino)}
+                      className="w-4 h-4 rounded bg-[#171717] border-[#424242]"
+                    />
+                    <span className="text-sm">{casino}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Stats en chiffres */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-[#1a1a1a] border-b border-[#424242]">
+        <div className="bg-[#212121] p-3 rounded-lg border border-[#424242]">
+          <h4 className="text-xs text-gray-400 mb-1">Total Dépôts</h4>
+          <p className="text-lg font-semibold">
+            {totals.totalDeposit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+          </p>
+        </div>
+        <div className="bg-[#212121] p-3 rounded-lg border border-[#424242]">
+          <h4 className="text-xs text-gray-400 mb-1">Total Profits</h4>
+          <p className="text-lg font-semibold">
+            {totals.totalProfits.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+          </p>
+        </div>
+        <div className="bg-[#212121] p-3 rounded-lg border border-[#424242]">
+          <h4 className="text-xs text-gray-400 mb-1">Inscriptions</h4>
+          <p className="text-lg font-semibold">{totals.totalSignups}</p>
+        </div>
+        <div className="bg-[#212121] p-3 rounded-lg border border-[#424242]">
+          <h4 className="text-xs text-gray-400 mb-1">FTD</h4>
+          <p className="text-lg font-semibold">{totals.totalFtd}</p>
+        </div>
+      </div>
+      
+      {/* Graphique */}
+      <div className="p-4 h-80">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-spin h-8 w-8 border-4 border-blue-500 rounded-full border-t-transparent"></div>
+          </div>
+        ) : !stats || !stats.data || stats.data.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            Aucune donnée disponible pour la période sélectionnée
+          </div>
+        ) : (
+          <div className="h-full">
+            {/* Ce serait l'emplacement pour une bibliothèque de graphiques comme Recharts ou Chart.js */}
+            <div className="text-center text-gray-400 h-full flex items-center justify-center">
+              Graphique {activeTab === "line" ? "en ligne" : "en barres"} montrant les données pour {filter.metrics.join(', ')}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default StatsPanel; 
 
 ===== AccessDenied.tsx =====
 Chemin : ./src/app/dashboard/admin/components/AccessDenied.tsx
@@ -559,12 +1472,17 @@ export default AccessDenied;
 ===== ReportList.tsx =====
 Chemin : ./src/app/dashboard/admin/components/ReportList.tsx
 // src/app/dashboard/admin/components/ReportList.tsx
-import React from "react";
+import React, { useState } from "react";
 import { useSession } from "next-auth/react";
-import { Plus, Upload, FileText, Download, Trash2, Calendar, BarChart2 } from "lucide-react";
+import { 
+  Plus, Upload, FileText, Download, Trash2, BarChart2,
+  Calendar as CalendarIcon, List, CalendarDays 
+} from "lucide-react";
 import { createNewReport, importExcel, deleteReport, generateExcel } from "../services/reportsService";
-import { CASINOS } from "../constants";
+import { CASINOS, formatDateFr, getCurrentDateFormatted } from "../constants";
 import { CasinoReport } from "../types";
+import CalendarView from "./CalendarView";
+import DatePickerInput from "./DatePickerInput";
 
 interface ReportListProps {
   reports: CasinoReport[];
@@ -576,10 +1494,24 @@ interface ReportListProps {
 
 const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports, setActiveReport, setActiveTab }) => {
   const { data: session } = useSession();
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   
   // Gérer la création d'un nouveau rapport
-  const handleCreateReport = () => {
+  const handleCreateReport = (date?: string) => {
     const newReport = createNewReport(session);
+    
+    // Si une date est fournie, mettre à jour le rapport
+    if (date) {
+      const newDate = new Date(date);
+      newReport.date = date;
+      newReport.day = newDate.getDate();
+      newReport.month = [
+        "janvier", "février", "mars", "avril", "mai", "juin",
+        "juillet", "août", "septembre", "octobre", "novembre", "décembre"
+      ][newDate.getMonth()];
+      newReport.year = newDate.getFullYear();
+    }
+    
     setActiveReport(newReport);
     setActiveTab("edit");
   };
@@ -625,7 +1557,13 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
     setTimeout(() => generateExcel(report), 100);
   };
 
-  // Regrouper les rapports par année
+  // Gérer l'édition d'un rapport
+  const handleEditReport = (report: CasinoReport) => {
+    setActiveReport(report);
+    setActiveTab("edit");
+  };
+
+  // Regrouper les rapports par année puis par mois
   const reportsByYear = React.useMemo(() => {
     const byYear: { [key: number]: CasinoReport[] } = {};
     
@@ -643,9 +1581,11 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
       .map(year => ({
         year,
         reports: byYear[year].sort((a, b) => {
-          // Ordre des mois en français
+          // Trier d'abord par mois puis par jour
           const months = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
-          return months.indexOf(a.month) - months.indexOf(b.month);
+          const monthDiff = months.indexOf(b.month) - months.indexOf(a.month);
+          
+          return monthDiff !== 0 ? monthDiff : b.day - a.day;
         })
       }));
   }, [reports]);
@@ -669,7 +1609,7 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
       {/* Statistiques rapides */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-[#1a1a1a] p-4 rounded-lg border border-[#424242] flex items-center">
-          <Calendar className="text-blue-500 mr-3" size={24} />
+          <CalendarDays className="text-blue-500 mr-3" size={24} />
           <div>
             <h4 className="text-sm text-gray-400">Rapports</h4>
             <p className="text-xl font-semibold">{stats.totalReports}</p>
@@ -711,28 +1651,51 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
         </div>
       </div>
 
-      {/* Boutons d'action */}
-      <div className="mb-6 flex flex-wrap gap-4">
-        <button
-          onClick={handleCreateReport}
-          className="flex items-center gap-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#525252] transition-colors"
-        >
-          <Plus size={16} />
-          Nouveau rapport
-        </button>
+      {/* Boutons d'action et sélecteur de vue */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-4">
+          <button
+            onClick={() => handleCreateReport(getCurrentDateFormatted())}
+            className="flex items-center gap-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#525252] transition-colors"
+          >
+            <Plus size={16} />
+            Nouveau rapport
+          </button>
+          
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleImportExcel}
+              className="hidden"
+            />
+            <div className="flex items-center gap-2 px-4 py-2 bg-[#323232] text-[#ECECEC] rounded-lg hover:bg-[#424242] transition-colors">
+              <Upload size={16} />
+              Importer un Excel
+            </div>
+          </label>
+        </div>
         
-        <label className="cursor-pointer">
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleImportExcel}
-            className="hidden"
-          />
-          <div className="flex items-center gap-2 px-4 py-2 bg-[#323232] text-[#ECECEC] rounded-lg hover:bg-[#424242] transition-colors">
-            <Upload size={16} />
-            Importer un Excel
-          </div>
-        </label>
+        <div className="flex items-center bg-[#323232] rounded-lg overflow-hidden">
+          <button 
+            onClick={() => setViewMode("list")}
+            className={`flex items-center gap-2 px-4 py-2 ${
+              viewMode === "list" ? "bg-[#424242]" : "hover:bg-[#383838]"
+            } transition-colors`}
+          >
+            <List size={16} />
+            Liste
+          </button>
+          <button 
+            onClick={() => setViewMode("calendar")}
+            className={`flex items-center gap-2 px-4 py-2 ${
+              viewMode === "calendar" ? "bg-[#424242]" : "hover:bg-[#383838]"
+            } transition-colors`}
+          >
+            <CalendarIcon size={16} />
+            Calendrier
+          </button>
+        </div>
       </div>
       
       {isLoading ? (
@@ -751,7 +1714,7 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <button
-              onClick={handleCreateReport}
+              onClick={() => handleCreateReport()}
               className="flex items-center gap-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#525252] transition-colors"
             >
               <Plus size={16} />
@@ -772,6 +1735,14 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
             </label>
           </div>
         </div>
+      ) : viewMode === "calendar" ? (
+        <CalendarView 
+          reports={reports}
+          onEditReport={handleEditReport}
+          onDeleteReport={handleDeleteReport}
+          onExportReport={handleExport}
+          onCreateReport={handleCreateReport}
+        />
       ) : (
         <div>
           {reportsByYear.map(({ year, reports }) => (
@@ -781,7 +1752,7 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-[#424242]">
-                      <th className="text-left p-4">Mois</th>
+                      <th className="text-left p-4">Date</th>
                       <th className="text-left p-4">Total Dépôts</th>
                       <th className="text-left p-4">Total Profits</th>
                       <th className="text-left p-4">Date de création</th>
@@ -801,32 +1772,29 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
                       
                       return (
                         <tr key={report.id} className="border-b border-[#424242] hover:bg-[#1d1d1d]">
-                          <td className="p-4 font-medium capitalize">{report.month}</td>
+                          <td className="p-4 font-medium">{formatDateFr(report.date)}</td>
                           <td className="p-4">{totalDeposit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</td>
                           <td className="p-4">{totalProfits.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</td>
                           <td className="p-4">{new Date(report.created_at).toLocaleDateString('fr-FR')}</td>
                           <td className="p-4 text-right">
                             <div className="flex items-center justify-end gap-2">
                               <button 
-                                className="p-2 hover:bg-[#212121] rounded-full"
-                                onClick={() => {
-                                  setActiveReport(report);
-                                  setActiveTab("edit");
-                                }}
-                                title="Voir/Modifier"
+                                onClick={() => handleEditReport(report)}
+                                className="p-1 rounded-full hover:bg-blue-900/30 text-blue-400"
+                                title="Éditer"
                               >
                                 <FileText size={16} />
                               </button>
                               <button 
-                                className="p-2 hover:bg-[#212121] rounded-full"
                                 onClick={() => handleExport(report)}
-                                title="Télécharger"
+                                className="p-1 rounded-full hover:bg-green-900/30 text-green-400"
+                                title="Exporter en Excel"
                               >
                                 <Download size={16} />
                               </button>
                               <button 
-                                className="p-2 hover:bg-[#212121] rounded-full text-red-500"
                                 onClick={() => report.id && handleDeleteReport(report.id)}
+                                className="p-1 rounded-full hover:bg-red-900/30 text-red-400"
                                 title="Supprimer"
                               >
                                 <Trash2 size={16} />
@@ -848,6 +1816,61 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
 };
 
 export default ReportList;
+
+===== DatePickerInput.tsx =====
+Chemin : ./src/app/dashboard/admin/components/DatePickerInput.tsx
+import React from "react";
+import { Calendar } from "lucide-react";
+import { formatDateFr } from "../constants";
+
+interface DatePickerInputProps {
+  label: string;
+  value: string;
+  onChange: (date: string) => void;
+  className?: string;
+  min?: string;
+  max?: string;
+  disabled?: boolean;
+}
+
+const DatePickerInput: React.FC<DatePickerInputProps> = ({
+  label,
+  value,
+  onChange,
+  className = "",
+  min,
+  max,
+  disabled = false,
+}) => {
+  return (
+    <div className={`relative ${className}`}>
+      <label className="block mb-2 text-sm font-medium text-gray-300">
+        {label}
+      </label>
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+          <Calendar size={16} className="text-gray-400" />
+        </div>
+        <input
+          type="date"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full pl-10 p-2.5 bg-[#171717] border border-[#424242] text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+          min={min}
+          max={max}
+          disabled={disabled}
+        />
+        {value && (
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            <span className="text-xs text-gray-400">{formatDateFr(value)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default DatePickerInput; 
 
 ===== YearlyComparison.tsx =====
 Chemin : ./src/app/dashboard/admin/components/YearlyComparison.tsx
@@ -1058,6 +2081,1510 @@ const YearlyComparison: React.FC<YearlyComparisonProps> = ({ years, yearlyData }
 
 export default YearlyComparison;
 
+===== StatisticsPanel.tsx =====
+Chemin : ./src/app/dashboard/admin/components/StatisticsPanel.tsx
+import React, { useState, useEffect } from "react";
+import { BarChart2, PieChart as PieChartIcon, LineChart as LineChartIcon, Filter, Calendar, ArrowDownUp, Download, Layers } from "lucide-react";
+import { 
+  LineChart, 
+  Line, 
+  BarChart, 
+  Bar, 
+  PieChart, 
+  Pie, 
+  Cell,
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer 
+} from 'recharts';
+import { StatFilter, DateRange } from "../types";
+import { CASINOS, METRICS, GROUP_BY_OPTIONS } from "../constants";
+import { fetchStats } from "../services/reportsService";
+import { AdminCard, AdminCardHeader, AdminCardTitle, AdminCardContent, AdminCardFooter } from "./ui/AdminCard";
+import { AdminButton } from "./ui/AdminButton";
+import { StatsCard } from "./StatsCard";
+import { DateRangePicker } from "./ui/DateRangePicker";
+import { AdminTabs } from "./ui/AdminTabs";
+
+interface StatisticsPanelProps {
+  className?: string;
+}
+
+export function StatisticsPanel({ className }: StatisticsPanelProps) {
+  // Initialiser les dates (30 derniers jours par défaut)
+  const today = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(today.getDate() - 29);
+  
+  const [chartType, setChartType] = useState<"line" | "bar" | "pie">("line");
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [metrics, setMetrics] = useState(METRICS.map(m => m.id));
+  const [casinos, setCasinos] = useState([...CASINOS]);
+  const [groupBy, setGroupBy] = useState<"day" | "week" | "month" | "year">("day");
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: thirtyDaysAgo.toISOString().split("T")[0],
+    endDate: today.toISOString().split("T")[0],
+  });
+  const [stats, setStats] = useState<any>(null);
+  
+  // Charger les statistiques lors des changements de filtre
+  useEffect(() => {
+    const loadStats = async () => {
+      setIsLoading(true);
+      try {
+        const data = await fetchStats({
+          dateRange,
+          metrics,
+          casinos,
+          groupBy,
+        });
+        setStats(data);
+      } catch (error) {
+        console.error("Erreur lors du chargement des statistiques:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadStats();
+  }, [dateRange, metrics, casinos, groupBy]);
+  
+  // Calculer les totaux pour l'affichage des cartes
+  const calculateTotals = () => {
+    if (!stats || !stats.data || !stats.data.length) {
+      return {
+        deposits: 0,
+        profits: 0,
+        signups: 0,
+        ftd: 0,
+        ngr: 0,
+        depositPerSignup: 0,
+        depositPerFtd: 0,
+        profitPerDeposit: 0,
+      };
+    }
+    
+    let deposits = 0;
+    let profits = 0;
+    let signups = 0;
+    let ftd = 0;
+    let ngr = 0;
+    
+    stats.data.forEach((item: any) => {
+      deposits += Number(item.TOTAL_DEPOSIT || 0);
+      profits += Number(item.PROFITS || 0);
+      signups += Number(item.SIGNUP || 0);
+      ftd += Number(item.FTD || 0);
+      ngr += Number(item.NGR || 0);
+    });
+    
+    return {
+      deposits,
+      profits,
+      signups,
+      ftd,
+      ngr,
+      depositPerSignup: signups > 0 ? deposits / signups : 0,
+      depositPerFtd: ftd > 0 ? deposits / ftd : 0,
+      profitPerDeposit: deposits > 0 ? (profits / deposits) * 100 : 0, // en pourcentage
+    };
+  };
+  
+  const totals = calculateTotals();
+  
+  // Calculer les tendances en comparant avec la période précédente
+  const calculateTrends = () => {
+    if (!stats || !stats.previousPeriod) {
+      return {
+        deposits: 0,
+        profits: 0,
+        signups: 0,
+        ftd: 0,
+      };
+    }
+    
+    const current = calculateTotals();
+    const previous = stats.previousPeriod;
+    
+    return {
+      deposits: previous.deposits > 0 
+        ? ((current.deposits - previous.deposits) / previous.deposits) * 100 
+        : 0,
+      profits: previous.profits > 0 
+        ? ((current.profits - previous.profits) / previous.profits) * 100 
+        : 0,
+      signups: previous.signups > 0 
+        ? ((current.signups - previous.signups) / previous.signups) * 100 
+        : 0,
+      ftd: previous.ftd > 0 
+        ? ((current.ftd - previous.ftd) / previous.ftd) * 100 
+        : 0,
+    };
+  };
+  
+  // Gérer les changements de filtres
+  const handleMetricToggle = (metricId: string) => {
+    setMetrics(prev => 
+      prev.includes(metricId)
+        ? prev.filter(id => id !== metricId)
+        : [...prev, metricId]
+    );
+  };
+  
+  const handleCasinoToggle = (casino: string) => {
+    setCasinos(prev => 
+      prev.includes(casino)
+        ? prev.filter(c => c !== casino)
+        : [...prev, casino]
+    );
+  };
+  
+  const handleGroupByChange = (value: string) => {
+    setGroupBy(value as "day" | "week" | "month" | "year");
+  };
+  
+  // Définir les onglets
+  const tabs = [
+    {
+      id: "overview",
+      label: "Vue d'ensemble",
+    },
+    {
+      id: "deposits",
+      label: "Dépôts",
+    },
+    {
+      id: "profits",
+      label: "Profits",
+    },
+    {
+      id: "conversion",
+      label: "Conversion",
+    },
+    {
+      id: "casinos",
+      label: "Performance par casino",
+    },
+  ];
+  
+  // Cette fonction simule des données pour le graphique
+  // Dans une implémentation réelle, ces données viendraient de l'API
+  const getChartData = () => {
+    if (!stats || !stats.data) return [];
+    
+    // Formater les données selon le type de graphique choisi
+    if (chartType === "pie") {
+      // Pour un graphique circulaire, on groupe par casino
+      const casinoData = CASINOS.map(casino => {
+        const casinoStats = stats.data.reduce((total: any, item: any) => {
+          // On additionne les valeurs pour chaque métrique sélectionnée
+          metrics.forEach(metric => {
+            const key = `${casino}_${metric}`;
+            if (item[key]) {
+              total[metric] = (total[metric] || 0) + Number(item[key]);
+            }
+          });
+          return total;
+        }, {});
+        
+        return {
+          name: casino,
+          // On prend la première métrique sélectionnée pour le graphique
+          value: casinoStats[metrics[0]] || 0,
+        };
+      });
+      
+      return casinoData;
+    }
+    
+    // Pour les graphiques en ligne et en barres, on garde la structure temporelle
+    return stats.data.map((item: any) => ({
+      date: item.date,
+      ...metrics.reduce((acc: any, metric) => {
+        acc[metric] = item[metric] || 0;
+        return acc;
+      }, {}),
+    }));
+  };
+  
+  const chartData = getChartData();
+  
+  // Couleurs pour les graphiques
+  const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+  
+  // Formatter pour le tooltip
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-[#252525] p-3 border border-[#323232] rounded-lg shadow-lg">
+          <p className="font-medium text-white">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={`item-${index}`} style={{ color: entry.color || '#fff' }}>
+              {entry.name}: {typeof entry.value === 'number' && (
+                entry.name.toLowerCase().includes('dépôt') || 
+                entry.name.toLowerCase().includes('profit') || 
+                entry.name.toLowerCase().includes('ngr')
+              ) 
+                ? `${entry.value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €` 
+                : entry.value
+              }
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+  
+  return (
+    <AdminCard className={className}>
+      <AdminCardHeader className="flex flex-row items-center justify-between">
+        <AdminCardTitle>Statistiques de performance</AdminCardTitle>
+        <div className="flex items-center space-x-2">
+          <DateRangePicker
+            value={dateRange}
+            onChange={setDateRange}
+            className="w-64"
+          />
+          <AdminButton
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+            className={isFiltersOpen ? "bg-[#323232]" : ""}
+          >
+            <Filter className="h-4 w-4" />
+          </AdminButton>
+          <div className="flex border border-[#323232] rounded-md overflow-hidden">
+            <AdminButton
+              variant={chartType === "line" ? "primary" : "ghost"}
+              size="icon"
+              onClick={() => setChartType("line")}
+              className="rounded-none border-0"
+            >
+              <LineChartIcon className="h-4 w-4" />
+            </AdminButton>
+            <AdminButton
+              variant={chartType === "bar" ? "primary" : "ghost"}
+              size="icon"
+              onClick={() => setChartType("bar")}
+              className="rounded-none border-0"
+            >
+              <BarChart2 className="h-4 w-4" />
+            </AdminButton>
+            <AdminButton
+              variant={chartType === "pie" ? "primary" : "ghost"}
+              size="icon"
+              onClick={() => setChartType("pie")}
+              className="rounded-none border-0"
+            >
+              <PieChartIcon className="h-4 w-4" />
+            </AdminButton>
+          </div>
+        </div>
+      </AdminCardHeader>
+      
+      {isFiltersOpen && (
+        <div className="border-t border-b border-[#323232] bg-[#1a1a1a] p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <h4 className="text-sm font-medium mb-2">Grouper par</h4>
+              <div className="grid grid-cols-2 gap-2">
+                {GROUP_BY_OPTIONS.map(option => (
+                  <AdminButton
+                    key={option.value}
+                    variant={groupBy === option.value ? "primary" : "secondary"}
+                    size="sm"
+                    onClick={() => handleGroupByChange(option.value)}
+                  >
+                    {option.label}
+                  </AdminButton>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="text-sm font-medium mb-2">Métriques</h4>
+              <div className="space-y-1">
+                {METRICS.map(metric => (
+                  <label key={metric.id} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={metrics.includes(metric.id)}
+                      onChange={() => handleMetricToggle(metric.id)}
+                      className="rounded border-[#323232] bg-[#252525] mr-2"
+                    />
+                    <span className="text-sm">{metric.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="text-sm font-medium mb-2">Casinos</h4>
+              <div className="space-y-1 max-h-32 overflow-y-auto pr-2">
+                {CASINOS.map(casino => (
+                  <label key={casino} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={casinos.includes(casino)}
+                      onChange={() => handleCasinoToggle(casino)}
+                      className="rounded border-[#323232] bg-[#252525] mr-2"
+                    />
+                    <span className="text-sm">{casino}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <AdminCardContent className="p-0">
+        <div className="border-b border-[#323232]">
+          <AdminTabs
+            tabs={tabs}
+            activeTab={activeTab}
+            onChange={setActiveTab}
+          />
+        </div>
+        
+        {activeTab === "overview" && (
+          <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4">
+              <StatsCard
+                title="Total des dépôts"
+                value={`${totals.deposits.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
+                icon={ArrowDownUp}
+                iconColor="text-blue-500"
+                trend={{
+                  value: Math.round(calculateTrends().deposits),
+                  label: "vs période précédente",
+                  positive: calculateTrends().deposits > 0,
+                }}
+              />
+              <StatsCard
+                title="Total des profits"
+                value={`${totals.profits.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
+                icon={BarChart2}
+                iconColor="text-green-500"
+                trend={{
+                  value: Math.round(calculateTrends().profits),
+                  label: "vs période précédente",
+                  positive: calculateTrends().profits > 0,
+                }}
+              />
+              <StatsCard
+                title="Inscriptions"
+                value={totals.signups}
+                icon={Layers}
+                iconColor="text-purple-500"
+                trend={{
+                  value: Math.round(calculateTrends().signups),
+                  label: "vs période précédente",
+                  positive: calculateTrends().signups > 0,
+                }}
+              />
+              <StatsCard
+                title="Premier dépôt (FTD)"
+                value={totals.ftd}
+                icon={Calendar}
+                iconColor="text-orange-500"
+                trend={{
+                  value: Math.round(calculateTrends().ftd),
+                  label: "vs période précédente",
+                  positive: calculateTrends().ftd > 0,
+                }}
+              />
+            </div>
+            
+            {/* Zone pour le graphique */}
+            <div className="p-4 h-80 flex items-center justify-center bg-[#141414] border-t border-[#323232]">
+              {isLoading ? (
+                <div className="flex flex-col items-center">
+                  <div className="h-8 w-8 border-4 border-t-blue-500 border-blue-500/30 rounded-full animate-spin mb-2"></div>
+                  <p className="text-gray-400 text-sm">Chargement des données...</p>
+                </div>
+              ) : !chartData.length ? (
+                <div className="text-gray-400">
+                  Aucune donnée disponible pour cette période
+                </div>
+              ) : (
+                <div className="w-full h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    {chartType === "line" ? (
+                      <LineChart
+                        data={chartData}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fill: '#ECECEC' }}
+                        />
+                        <YAxis 
+                          tick={{ fill: '#ECECEC' }}
+                          tickFormatter={(value) => `${value.toLocaleString('fr-FR')}`}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend />
+                        {metrics.map((metric, index) => (
+                          <Line
+                            key={metric}
+                            type="monotone"
+                            dataKey={metric}
+                            name={METRICS.find(m => m.id === metric)?.label || metric}
+                            stroke={COLORS[index % COLORS.length]}
+                            activeDot={{ r: 8 }}
+                          />
+                        ))}
+                      </LineChart>
+                    ) : chartType === "bar" ? (
+                      <BarChart
+                        data={chartData}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fill: '#ECECEC' }}
+                        />
+                        <YAxis 
+                          tick={{ fill: '#ECECEC' }}
+                          tickFormatter={(value) => `${value.toLocaleString('fr-FR')}`}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend />
+                        {metrics.map((metric, index) => (
+                          <Bar
+                            key={metric}
+                            dataKey={metric}
+                            name={METRICS.find(m => m.id === metric)?.label || metric}
+                            fill={COLORS[index % COLORS.length]}
+                          />
+                        ))}
+                      </BarChart>
+                    ) : (
+                      <PieChart>
+                        <Pie
+                          data={chartData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          nameKey="name"
+                          label={({ name, percent }: { name: string, percent: number }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {chartData.map((entry: any, index: number) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend />
+                      </PieChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {activeTab === "deposits" && (
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <StatsCard
+                title="Total des dépôts"
+                value={`${totals.deposits.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
+                icon={ArrowDownUp}
+                iconColor="text-blue-500"
+              />
+              <StatsCard
+                title="Dépôt moyen par inscription"
+                value={`${totals.depositPerSignup.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
+                icon={Layers}
+                iconColor="text-purple-500"
+              />
+              <StatsCard
+                title="Dépôt moyen par FTD"
+                value={`${totals.depositPerFtd.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
+                icon={Calendar}
+                iconColor="text-orange-500"
+              />
+            </div>
+            
+            {/* Zone pour le graphique de dépôts */}
+            <div className="h-80 flex items-center justify-center bg-[#141414] border border-[#323232] rounded-lg">
+              {isLoading ? (
+                <div className="flex flex-col items-center">
+                  <div className="h-8 w-8 border-4 border-t-blue-500 border-blue-500/30 rounded-full animate-spin mb-2"></div>
+                  <p className="text-gray-400 text-sm">Chargement des données...</p>
+                </div>
+              ) : !chartData.length ? (
+                <div className="text-gray-400">
+                  Aucune donnée disponible pour cette période
+                </div>
+              ) : (
+                <div className="w-full h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={chartData}
+                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                      <XAxis 
+                        dataKey="date" 
+                        tick={{ fill: '#ECECEC' }}
+                      />
+                      <YAxis 
+                        tick={{ fill: '#ECECEC' }}
+                        tickFormatter={(value) => `${value.toLocaleString('fr-FR')} €`}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend />
+                      {metrics.filter(m => m.includes('DEPOSIT')).map((metric, index) => (
+                        <Bar
+                          key={metric}
+                          dataKey={metric}
+                          name={METRICS.find(m => m.id === metric)?.label || metric}
+                          fill={COLORS[index % COLORS.length]}
+                        />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {activeTab === "profits" && (
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <StatsCard
+                title="Total des profits"
+                value={`${totals.profits.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
+                icon={BarChart2}
+                iconColor="text-green-500"
+              />
+              <StatsCard
+                title="NGR"
+                value={`${totals.ngr.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
+                icon={LineChartIcon}
+                iconColor="text-cyan-500"
+              />
+              <StatsCard
+                title="Marge sur dépôt"
+                value={`${totals.profitPerDeposit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} %`}
+                icon={PieChartIcon}
+                iconColor="text-amber-500"
+              />
+            </div>
+            
+            {/* Zone pour le graphique de profits */}
+            <div className="h-80 flex items-center justify-center bg-[#141414] border border-[#323232] rounded-lg">
+              {isLoading ? (
+                <div className="flex flex-col items-center">
+                  <div className="h-8 w-8 border-4 border-t-green-500 border-green-500/30 rounded-full animate-spin mb-2"></div>
+                  <p className="text-gray-400 text-sm">Chargement des données...</p>
+                </div>
+              ) : !chartData.length ? (
+                <div className="text-gray-400">
+                  Aucune donnée disponible pour cette période
+                </div>
+              ) : (
+                <div className="w-full h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={chartData}
+                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                      <XAxis 
+                        dataKey="date" 
+                        tick={{ fill: '#ECECEC' }}
+                      />
+                      <YAxis 
+                        tick={{ fill: '#ECECEC' }}
+                        tickFormatter={(value) => `${value.toLocaleString('fr-FR')} €`}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend />
+                      {metrics.filter(m => m.includes('PROFITS') || m.includes('NGR')).map((metric, index) => (
+                        <Line
+                          key={metric}
+                          type="monotone"
+                          dataKey={metric}
+                          name={METRICS.find(m => m.id === metric)?.label || metric}
+                          stroke={COLORS[index % COLORS.length]}
+                          activeDot={{ r: 8 }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {activeTab === "conversion" && (
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <StatsCard
+                title="Inscriptions"
+                value={totals.signups}
+                icon={Layers}
+                iconColor="text-purple-500"
+              />
+              <StatsCard
+                title="Premier dépôt (FTD)"
+                value={totals.ftd}
+                icon={Calendar}
+                iconColor="text-orange-500"
+              />
+              <StatsCard
+                title="Taux de conversion"
+                value={`${totals.signups > 0 ? ((totals.ftd / totals.signups) * 100).toFixed(2) : "0.00"} %`}
+                icon={ArrowDownUp}
+                iconColor="text-pink-500"
+              />
+            </div>
+            
+            {/* Zone pour le graphique de conversion */}
+            <div className="h-80 flex items-center justify-center bg-[#141414] border border-[#323232] rounded-lg">
+              {isLoading ? (
+                <div className="flex flex-col items-center">
+                  <div className="h-8 w-8 border-4 border-t-purple-500 border-purple-500/30 rounded-full animate-spin mb-2"></div>
+                  <p className="text-gray-400 text-sm">Chargement des données...</p>
+                </div>
+              ) : !chartData.length ? (
+                <div className="text-gray-400">
+                  Aucune donnée disponible pour cette période
+                </div>
+              ) : (
+                <div className="w-full h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={chartData}
+                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                      <XAxis 
+                        dataKey="date" 
+                        tick={{ fill: '#ECECEC' }}
+                      />
+                      <YAxis 
+                        tick={{ fill: '#ECECEC' }}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend />
+                      {metrics.filter(m => m.includes('SIGNUP') || m.includes('FTD')).map((metric, index) => (
+                        <Line
+                          key={metric}
+                          type="monotone"
+                          dataKey={metric}
+                          name={METRICS.find(m => m.id === metric)?.label || metric}
+                          stroke={COLORS[index % COLORS.length]}
+                          activeDot={{ r: 8 }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {activeTab === "casinos" && (
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="h-80 flex items-center justify-center bg-[#141414] border border-[#323232] rounded-lg">
+                {isLoading ? (
+                  <div className="flex flex-col items-center">
+                    <div className="h-8 w-8 border-4 border-t-blue-500 border-blue-500/30 rounded-full animate-spin mb-2"></div>
+                    <p className="text-gray-400 text-sm">Chargement des données...</p>
+                  </div>
+                ) : !chartData.length ? (
+                  <div className="text-gray-400">
+                    Aucune donnée disponible pour cette période
+                  </div>
+                ) : (
+                  <div className="w-full h-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={casinos.map(casino => {
+                            const total = chartData.reduce((sum: number, item: any) => {
+                              Object.keys(item).forEach(key => {
+                                if (key.startsWith(casino) && key.includes('DEPOSIT')) {
+                                  sum += Number(item[key] || 0);
+                                }
+                              });
+                              return sum;
+                            }, 0);
+                            return { name: casino, value: total };
+                          })}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          nameKey="name"
+                          label={({ name, percent }: { name: string, percent: number }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {casinos.map((_, index: number) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: number) => `${value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+              
+              <div className="h-80 flex items-center justify-center bg-[#141414] border border-[#323232] rounded-lg">
+                {isLoading ? (
+                  <div className="flex flex-col items-center">
+                    <div className="h-8 w-8 border-4 border-t-green-500 border-green-500/30 rounded-full animate-spin mb-2"></div>
+                    <p className="text-gray-400 text-sm">Chargement des données...</p>
+                  </div>
+                ) : !chartData.length ? (
+                  <div className="text-gray-400">
+                    Aucune donnée disponible pour cette période
+                  </div>
+                ) : (
+                  <div className="w-full h-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={casinos.map(casino => {
+                            const total = chartData.reduce((sum: number, item: any) => {
+                              Object.keys(item).forEach(key => {
+                                if (key.startsWith(casino) && key.includes('PROFITS')) {
+                                  sum += Number(item[key] || 0);
+                                }
+                              });
+                              return sum;
+                            }, 0);
+                            return { name: casino, value: total };
+                          })}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          nameKey="name"
+                          label={({ name, percent }: { name: string, percent: number }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {casinos.map((_, index: number) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: number) => `${value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+              
+              <div className="col-span-full">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-[#1d1d1d]">
+                      <th className="py-2 px-4 text-left border-b border-[#323232]">Casino</th>
+                      <th className="py-2 px-4 text-left border-b border-[#323232]">Dépôts</th>
+                      <th className="py-2 px-4 text-left border-b border-[#323232]">Profits</th>
+                      <th className="py-2 px-4 text-left border-b border-[#323232]">Inscriptions</th>
+                      <th className="py-2 px-4 text-left border-b border-[#323232]">FTD</th>
+                      <th className="py-2 px-4 text-left border-b border-[#323232]">Marge</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {CASINOS.map((casino, index) => (
+                      <tr key={casino} className={index % 2 === 0 ? 'bg-[#141414]' : 'bg-[#171717]'}>
+                        <td className="py-2 px-4 border-b border-[#323232]">{casino}</td>
+                        <td className="py-2 px-4 border-b border-[#323232]">
+                          {/* Simulation de données */}
+                          {(Math.random() * 10000).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                        </td>
+                        <td className="py-2 px-4 border-b border-[#323232]">
+                          {(Math.random() * 5000).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                        </td>
+                        <td className="py-2 px-4 border-b border-[#323232]">
+                          {Math.floor(Math.random() * 100)}
+                        </td>
+                        <td className="py-2 px-4 border-b border-[#323232]">
+                          {Math.floor(Math.random() * 50)}
+                        </td>
+                        <td className="py-2 px-4 border-b border-[#323232]">
+                          {(Math.random() * 30).toFixed(2)} %
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </AdminCardContent>
+      
+      <AdminCardFooter className="flex items-center justify-between">
+        <p className="text-sm text-gray-400">
+          Données du {new Date(dateRange.startDate).toLocaleDateString('fr-FR')} au {new Date(dateRange.endDate).toLocaleDateString('fr-FR')}
+        </p>
+        <AdminButton variant="secondary" size="sm">
+          <Download className="mr-1 h-4 w-4" />
+          Exporter les données
+        </AdminButton>
+      </AdminCardFooter>
+    </AdminCard>
+  );
+} 
+
+===== CalendarView.tsx =====
+Chemin : ./src/app/dashboard/admin/components/CalendarView.tsx
+import React, { useState, useMemo } from "react";
+import { ChevronLeft, ChevronRight, Edit, Download, Trash2 } from "lucide-react";
+import { MONTHS } from "../constants";
+import { CasinoReport } from "../types";
+import { formatDateFr } from "../constants";
+
+interface CalendarViewProps {
+  reports: CasinoReport[];
+  onEditReport: (report: CasinoReport) => void;
+  onDeleteReport: (reportId: number) => void;
+  onExportReport: (report: CasinoReport) => void;
+  onCreateReport: (date: string) => void;
+}
+
+const CalendarView: React.FC<CalendarViewProps> = ({
+  reports,
+  onEditReport,
+  onDeleteReport,
+  onExportReport,
+  onCreateReport,
+}) => {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  // Fonction pour générer la grille du calendrier
+  const calendar = useMemo(() => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    
+    // Premier jour du mois
+    const firstDay = new Date(year, month, 1);
+    // Dernier jour du mois
+    const lastDay = new Date(year, month + 1, 0);
+    
+    // Jour de la semaine du premier jour (0-6, 0 est dimanche)
+    const firstDayOfWeek = firstDay.getDay();
+    // Nombre de jours dans le mois
+    const daysInMonth = lastDay.getDate();
+    
+    // Création du tableau pour le calendrier
+    const calendarDays = [];
+    
+    // Ajouter les jours du mois précédent pour compléter la première semaine
+    const prevMonth = new Date(year, month, 0);
+    const daysInPrevMonth = prevMonth.getDate();
+    
+    // En France, la semaine commence le lundi (1) et non le dimanche (0)
+    const startOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    
+    for (let i = startOffset; i > 0; i--) {
+      calendarDays.push({
+        date: new Date(year, month - 1, daysInPrevMonth - i + 1),
+        isCurrentMonth: false,
+      });
+    }
+    
+    // Ajouter les jours du mois en cours
+    for (let i = 1; i <= daysInMonth; i++) {
+      calendarDays.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true,
+      });
+    }
+    
+    // Ajouter les jours du mois suivant pour compléter la dernière semaine
+    const remainingDays = 42 - calendarDays.length; // 6 semaines x 7 jours = 42
+    for (let i = 1; i <= remainingDays; i++) {
+      calendarDays.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false,
+      });
+    }
+    
+    return calendarDays;
+  }, [currentDate]);
+  
+  // Organiser les rapports par date
+  const reportsByDate = useMemo(() => {
+    const byDate: { [key: string]: CasinoReport } = {};
+    
+    reports.forEach(report => {
+      byDate[report.date] = report;
+    });
+    
+    return byDate;
+  }, [reports]);
+  
+  // Fonction pour obtenir un résumé des rapports quotidiens
+  const getReportSummary = (report: CasinoReport) => {
+    let totalDeposit = 0;
+    let totalProfits = 0;
+    
+    Object.entries(report.data).forEach(([key, value]) => {
+      if (key.includes('_TOTAL_DEPOSIT')) {
+        totalDeposit += parseFloat(value || '0');
+      } else if (key.includes('_PROFITS')) {
+        totalProfits += parseFloat(value || '0');
+      }
+    });
+    
+    return { totalDeposit, totalProfits };
+  };
+  
+  // Naviguer au mois précédent
+  const prevMonth = () => {
+    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+  
+  // Naviguer au mois suivant
+  const nextMonth = () => {
+    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+  
+  // Naviguer au mois actuel
+  const goToToday = () => {
+    setCurrentDate(new Date());
+  };
+  
+  // Formater la date au format ISO (YYYY-MM-DD)
+  const formatDateISO = (date: Date) => {
+    return date.toISOString().split('T')[0];
+  };
+  
+  // Jours de la semaine en français, commençant par lundi
+  const weekdays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  
+  return (
+    <div className="bg-[#171717] rounded-lg border border-[#424242] overflow-hidden">
+      <div className="p-4 border-b border-[#424242] flex items-center justify-between">
+        <h3 className="text-xl font-semibold">
+          {MONTHS[currentDate.getMonth()].charAt(0).toUpperCase() + MONTHS[currentDate.getMonth()].slice(1)} {currentDate.getFullYear()}
+        </h3>
+        <div className="flex items-center space-x-2">
+          <button 
+            onClick={prevMonth}
+            className="p-2 rounded-lg hover:bg-[#2a2a2a] transition-colors"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button 
+            onClick={goToToday}
+            className="px-3 py-1 text-sm rounded-lg bg-[#2a2a2a] hover:bg-[#3a3a3a] transition-colors"
+          >
+            Aujourd'hui
+          </button>
+          <button 
+            onClick={nextMonth}
+            className="p-2 rounded-lg hover:bg-[#2a2a2a] transition-colors"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-7 text-center border-b border-[#2a2a2a]">
+        {weekdays.map(day => (
+          <div key={day} className="py-2 font-medium text-sm text-gray-400">
+            {day}
+          </div>
+        ))}
+      </div>
+      
+      <div className="grid grid-cols-7 grid-rows-6 h-[750px] md:h-[600px]">
+        {calendar.map((day, index) => {
+          const dateStr = formatDateISO(day.date);
+          const report = reportsByDate[dateStr];
+          const isToday = dateStr === formatDateISO(new Date());
+          
+          return (
+            <div 
+              key={index} 
+              className={`border-r border-b border-[#2a2a2a] p-2 md:p-3 relative overflow-hidden transition-colors ${
+                day.isCurrentMonth ? 'bg-[#1a1a1a]' : 'bg-[#131313] text-gray-600'
+              } ${isToday ? 'ring-2 ring-blue-500 ring-inset' : ''}`}
+            >
+              <div className="flex items-start justify-between">
+                <span className={`text-sm md:text-base font-medium ${isToday ? 'text-blue-400' : ''}`}>
+                  {day.date.getDate()}
+                </span>
+                {day.isCurrentMonth && (
+                  <button 
+                    onClick={() => onCreateReport(dateStr)}
+                    className="p-1 rounded-full hover:bg-[#2a2a2a] text-gray-400 hover:text-white transition-colors"
+                    title="Créer un rapport pour cette date"
+                  >
+                    <Edit size={14} />
+                  </button>
+                )}
+              </div>
+              
+              {report && (
+                <div className="mt-2 text-xs">
+                  <div className="bg-[#242424] rounded p-2 mb-2">
+                    <p className="truncate font-medium text-green-400">
+                      Dépôts: {getReportSummary(report).totalDeposit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                    </p>
+                    <p className="truncate font-medium text-purple-400">
+                      Profits: {getReportSummary(report).totalProfits.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                    </p>
+                    <div className="flex mt-1 space-x-1">
+                      <button 
+                        onClick={() => onEditReport(report)}
+                        className="flex-1 p-1 rounded bg-[#323232] hover:bg-[#424242] transition-colors"
+                        title="Modifier"
+                      >
+                        <Edit size={12} className="mx-auto" />
+                      </button>
+                      <button 
+                        onClick={() => onExportReport(report)}
+                        className="flex-1 p-1 rounded bg-[#323232] hover:bg-[#424242] transition-colors"
+                        title="Exporter"
+                      >
+                        <Download size={12} className="mx-auto" />
+                      </button>
+                      <button 
+                        onClick={() => report.id && onDeleteReport(report.id)}
+                        className="flex-1 p-1 rounded bg-[#323232] hover:bg-red-900 transition-colors"
+                        title="Supprimer"
+                      >
+                        <Trash2 size={12} className="mx-auto" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default CalendarView; 
+
+===== DailyReportViewer.tsx =====
+Chemin : ./src/app/dashboard/admin/components/DailyReportViewer.tsx
+import React, { useState } from "react";
+import { CasinoReport } from "../types";
+import { ChevronLeft, ChevronRight, Download, Edit, Trash2, Calendar, List } from "lucide-react";
+import { formatDateFr } from "../constants";
+import { AdminCard, AdminCardContent, AdminCardHeader, AdminCardTitle } from "./ui/AdminCard";
+import { AdminButton } from "./ui/AdminButton";
+
+interface DailyReportViewerProps {
+  reports: CasinoReport[];
+  onEditReport: (report: CasinoReport) => void;
+  onDeleteReport: (reportId: number) => void;
+  onExportReport: (report: CasinoReport) => void;
+  onCreateReport: (date: string) => void;
+}
+
+type ViewMode = "calendar" | "list";
+
+export function DailyReportViewer({
+  reports,
+  onEditReport,
+  onDeleteReport,
+  onExportReport,
+  onCreateReport,
+}: DailyReportViewerProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>("calendar");
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  // Fonctions pour gérer le changement de mois dans le calendrier
+  const goToPreviousMonth = () => {
+    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+  
+  const goToNextMonth = () => {
+    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+  
+  const goToCurrentMonth = () => {
+    setCurrentDate(new Date());
+  };
+  
+  // Générer la grille du calendrier
+  const generateCalendarGrid = () => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    
+    // Premier jour du mois
+    const firstDay = new Date(year, month, 1);
+    // Dernier jour du mois
+    const lastDay = new Date(year, month + 1, 0);
+    
+    // Obtenir le jour de la semaine du premier jour (0-6, où 0 = dimanche)
+    const firstDayOfWeek = firstDay.getDay();
+    
+    // Ajuster pour commencer la semaine le lundi (0 = lundi, 6 = dimanche)
+    const adjustedFirstDayOfWeek = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    
+    // Nombre de jours dans le mois courant
+    const daysInMonth = lastDay.getDate();
+    
+    // Tableau pour stocker la grille du calendrier
+    const calendarDays = [];
+    
+    // Jours du mois précédent à afficher
+    const prevMonth = new Date(year, month, 0);
+    const daysInPrevMonth = prevMonth.getDate();
+    
+    for (let i = 0; i < adjustedFirstDayOfWeek; i++) {
+      calendarDays.push({
+        date: new Date(year, month - 1, daysInPrevMonth - adjustedFirstDayOfWeek + i + 1),
+        isCurrentMonth: false,
+      });
+    }
+    
+    // Jours du mois courant
+    for (let i = 1; i <= daysInMonth; i++) {
+      calendarDays.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true,
+      });
+    }
+    
+    // Jours du mois suivant pour compléter la grille
+    const remainingCells = 42 - calendarDays.length; // 6 semaines x 7 jours = 42
+    for (let i = 1; i <= remainingCells; i++) {
+      calendarDays.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false,
+      });
+    }
+    
+    return calendarDays;
+  };
+  
+  // Formater une date au format YYYY-MM-DD
+  const formatISODate = (date: Date) => {
+    return date.toISOString().split('T')[0];
+  };
+  
+  // Récupérer un rapport pour une date donnée
+  const getReportForDate = (date: Date) => {
+    const isoDate = formatISODate(date);
+    return reports.find(report => report.date === isoDate);
+  };
+  
+  // Calculer les totaux pour un rapport
+  const calculateReportTotals = (report: CasinoReport) => {
+    let totalDeposit = 0;
+    let totalProfits = 0;
+    
+    Object.entries(report.data).forEach(([key, value]) => {
+      if (key.includes('_TOTAL_DEPOSIT')) {
+        totalDeposit += parseFloat(value || '0');
+      } else if (key.includes('_PROFITS')) {
+        totalProfits += parseFloat(value || '0');
+      }
+    });
+    
+    return { totalDeposit, totalProfits };
+  };
+  
+  // Nom des mois en français
+  const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+  
+  // Jours de la semaine en français
+  const weekdays = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+  
+  // Regrouper les rapports par année puis par mois pour l'affichage en liste
+  const groupReportsByYearAndMonth = () => {
+    const grouped: { [year: number]: { [month: string]: CasinoReport[] } } = {};
+    
+    reports.forEach(report => {
+      if (!grouped[report.year]) {
+        grouped[report.year] = {};
+      }
+      
+      if (!grouped[report.year][report.month]) {
+        grouped[report.year][report.month] = [];
+      }
+      
+      grouped[report.year][report.month].push(report);
+    });
+    
+    // Convertir en tableau trié
+    return Object.entries(grouped)
+      .sort(([yearA], [yearB]) => Number(yearB) - Number(yearA))
+      .map(([year, months]) => ({
+        year: Number(year),
+        months: Object.entries(months)
+          .map(([month, reports]) => ({
+            month,
+            reports: reports.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+          })),
+      }));
+  };
+  
+  const groupedReports = groupReportsByYearAndMonth();
+  const calendarDays = generateCalendarGrid();
+  const today = new Date();
+  
+  return (
+    <AdminCard className="overflow-hidden">
+      <AdminCardHeader className="flex flex-row items-center justify-between border-b border-[#323232] p-4">
+        <AdminCardTitle>Rapports quotidiens</AdminCardTitle>
+        <div className="flex items-center space-x-2">
+          <div className="flex items-center rounded-lg bg-[#252525] p-1">
+            <AdminButton
+              variant={viewMode === "list" ? "primary" : "ghost"}
+              size="icon"
+              onClick={() => setViewMode("list")}
+              className="h-8 w-8 rounded-md"
+            >
+              <List className="h-4 w-4" />
+            </AdminButton>
+            <AdminButton
+              variant={viewMode === "calendar" ? "primary" : "ghost"}
+              size="icon"
+              onClick={() => setViewMode("calendar")}
+              className="h-8 w-8 rounded-md"
+            >
+              <Calendar className="h-4 w-4" />
+            </AdminButton>
+          </div>
+        </div>
+      </AdminCardHeader>
+      
+      <AdminCardContent className="p-0">
+        {viewMode === "calendar" ? (
+          <div>
+            <div className="flex items-center justify-between bg-[#1d1d1d] p-4">
+              <h3 className="text-lg font-medium">
+                {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+              </h3>
+              <div className="flex items-center space-x-2">
+                <AdminButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={goToPreviousMonth}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </AdminButton>
+                <AdminButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={goToCurrentMonth}
+                >
+                  Aujourd'hui
+                </AdminButton>
+                <AdminButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={goToNextMonth}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </AdminButton>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-7 bg-[#212121] border-y border-[#323232]">
+              {weekdays.map(day => (
+                <div key={day} className="p-2 text-center text-sm font-medium text-gray-400">
+                  {day}
+                </div>
+              ))}
+            </div>
+            
+            <div className="grid grid-cols-7 grid-rows-6 divide-x divide-y divide-[#323232]">
+              {calendarDays.map((day, index) => {
+                const dateStr = formatISODate(day.date);
+                const report = getReportForDate(day.date);
+                const isToday = formatISODate(today) === dateStr;
+                
+                return (
+                  <div
+                    key={index}
+                    className={`min-h-[110px] p-2 ${
+                      day.isCurrentMonth ? "bg-[#171717]" : "bg-[#121212] text-gray-600"
+                    } ${isToday ? "ring-1 ring-inset ring-blue-500" : ""}`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <span className={`text-sm font-medium ${isToday ? "text-blue-400" : ""}`}>
+                        {day.date.getDate()}
+                      </span>
+                      {day.isCurrentMonth && (
+                        <AdminButton
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onCreateReport(dateStr)}
+                          className="h-6 w-6 rounded-full"
+                          title="Créer/Éditer un rapport pour cette date"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </AdminButton>
+                      )}
+                    </div>
+                    
+                    {report && (
+                      <div className="mt-2">
+                        <div className="rounded bg-[#212121] p-2 text-xs">
+                          <div className="font-medium text-green-400">
+                            Dépôts: {calculateReportTotals(report).totalDeposit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                          </div>
+                          <div className="font-medium text-purple-400">
+                            Profits: {calculateReportTotals(report).totalProfits.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                          </div>
+                          <div className="mt-1 flex space-x-1">
+                            <AdminButton
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onEditReport(report)}
+                              className="h-6 w-6 flex-1 bg-[#252525] hover:bg-[#323232]"
+                              title="Éditer"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </AdminButton>
+                            <AdminButton
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onExportReport(report)}
+                              className="h-6 w-6 flex-1 bg-[#252525] hover:bg-[#323232]"
+                              title="Exporter"
+                            >
+                              <Download className="h-3 w-3" />
+                            </AdminButton>
+                            <AdminButton
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => report.id && onDeleteReport(report.id)}
+                              className="h-6 w-6 flex-1 bg-[#252525] hover:bg-red-900/30"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </AdminButton>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="divide-y divide-[#323232]">
+            {groupedReports.map(({ year, months }) => (
+              <div key={year} className="p-4">
+                <h3 className="mb-3 text-xl font-semibold">{year}</h3>
+                
+                <div className="space-y-4">
+                  {months.map(({ month, reports }) => (
+                    <div key={month} className="rounded-lg border border-[#323232] overflow-hidden">
+                      <div className="bg-[#1d1d1d] px-4 py-2 text-lg font-medium capitalize">
+                        {month}
+                      </div>
+                      
+                      <div>
+                        <table className="w-full">
+                          <thead className="bg-[#212121]">
+                            <tr>
+                              <th className="px-4 py-3 text-left font-medium text-gray-300">Date</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-300">Dépôts</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-300">Profits</th>
+                              <th className="px-4 py-3 text-right font-medium text-gray-300">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#323232]">
+                            {reports.map(report => {
+                              const { totalDeposit, totalProfits } = calculateReportTotals(report);
+                              
+                              return (
+                                <tr key={report.id} className="hover:bg-[#1a1a1a]">
+                                  <td className="px-4 py-3 font-medium">
+                                    {formatDateFr(report.date)}
+                                  </td>
+                                  <td className="px-4 py-3 text-green-400">
+                                    {totalDeposit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                                  </td>
+                                  <td className="px-4 py-3 text-purple-400">
+                                    {totalProfits.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <div className="flex items-center justify-end space-x-2">
+                                      <AdminButton
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => onEditReport(report)}
+                                        className="h-8 w-8 hover:bg-[#252525]"
+                                        title="Éditer"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </AdminButton>
+                                      <AdminButton
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => onExportReport(report)}
+                                        className="h-8 w-8 hover:bg-[#252525]"
+                                        title="Exporter"
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </AdminButton>
+                                      <AdminButton
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => report.id && onDeleteReport(report.id)}
+                                        className="h-8 w-8 hover:bg-red-900/30"
+                                        title="Supprimer"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </AdminButton>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </AdminCardContent>
+    </AdminCard>
+  );
+} 
+
 ===== ReportEditor.tsx =====
 Chemin : ./src/app/dashboard/admin/components/ReportEditor.tsx
 // src/app/dashboard/admin/components/ReportEditor.tsx
@@ -1070,9 +3597,11 @@ import {
   addCasino,
   removeCasino,
   renameCasino,
+  formatDateFr,
 } from "../constants";
 import { saveReport, generateExcel } from "../services/reportsService";
 import { CasinoReport } from "../types";
+import DatePickerInput from "./DatePickerInput";
 
 interface ReportEditorProps {
   activeReport: CasinoReport;
@@ -1112,16 +3641,21 @@ const ReportEditor: React.FC<ReportEditorProps> = ({
     });
   };
 
-  // Mettre à jour les métadonnées (mois/année)
-  const handleMetadataChange = (
-    field: string,
-    value: string | number
-  ): void => {
+  // Mettre à jour la date du rapport
+  const handleDateChange = (date: string): void => {
+    const newDate = new Date(date);
+    const day = newDate.getDate();
+    const month = MONTHS[newDate.getMonth()];
+    const year = newDate.getFullYear();
+    
     setActiveReport((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
-        [field]: value,
+        date,
+        day,
+        month,
+        year,
       };
     });
   };
@@ -1320,108 +3854,109 @@ const ReportEditor: React.FC<ReportEditorProps> = ({
 
   return (
     <div className="bg-[#171717] p-6 rounded-lg border border-[#424242]">
-      {/* En-tête et boutons d'action */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-xl font-semibold capitalize">
-            Rapport {activeReport.month} {activeReport.year}
+      {/* Barre d'actions */}
+      <div className="mb-6 flex flex-wrap justify-between items-center gap-4">
+        <div className="flex-1">
+          <h2 className="text-xl font-semibold">
+            Rapport du {formatDateFr(activeReport.date)}
           </h2>
           <p className="text-sm text-gray-400">
             {activeReport.id
-              ? "Modification du rapport"
-              : "Création d'un nouveau rapport"}
+              ? `Dernière modification: ${new Date(
+                  activeReport.created_at
+                ).toLocaleDateString("fr-FR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}`
+              : "Nouveau rapport - Non sauvegardé"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExportExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-[#ECECEC] rounded-lg hover:bg-gray-600 transition-colors"
-          >
-            <Download size={16} />
-            Exporter en Excel
-          </button>
+        <div className="flex gap-3">
           <button
             onClick={handleSaveReport}
-            className="flex items-center gap-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200 border border-[#424242]"
             disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-[#424242] hover:bg-[#525252] text-white rounded-lg transition-colors disabled:opacity-50"
           >
             <Save size={16} />
-            {isLoading ? "Sauvegarde..." : "Sauvegarder"}
+            Sauvegarder
+          </button>
+          <button
+            onClick={handleExportExcel}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-[#323232] hover:bg-[#424242] text-white rounded-lg transition-colors disabled:opacity-50"
+          >
+            <Download size={16} />
+            Exporter
           </button>
         </div>
       </div>
 
       {/* Métadonnées du rapport */}
-      <div className="bg-[#1a1a1a] p-4 rounded-lg mb-6">
+      <div className="mb-6 p-4 bg-[#1a1a1a] rounded-lg border border-[#424242]">
+        <h3 className="text-lg font-medium mb-4">Informations du rapport</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <DatePickerInput
+            label="Date du rapport"
+            value={activeReport.date}
+            onChange={handleDateChange}
+            disabled={isLoading}
+          />
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">
-              Mois
-            </label>
-            <select
-              value={activeReport.month}
-              onChange={(e) => handleMetadataChange("month", e.target.value)}
-              className="w-full p-2 rounded bg-[#212121] border border-[#424242] text-white"
-            >
-              {MONTHS.map((month) => (
-                <option key={month} value={month}>
-                  {month}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">
-              Année
+            <label className="block mb-2 text-sm font-medium text-gray-300">
+              Nom du modèle
             </label>
             <input
-              type="number"
-              value={activeReport.year}
+              type="text"
+              value={activeReport.template_name}
               onChange={(e) =>
-                handleMetadataChange(
-                  "year",
-                  parseInt(e.target.value) || new Date().getFullYear()
-                )
+                setActiveReport((prev) => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    template_name: e.target.value,
+                  };
+                })
               }
-              className="w-full p-2 rounded bg-[#212121] border border-[#424242] text-white"
-              min="2020"
-              max="2030"
+              className="w-full p-2.5 bg-[#171717] border border-[#424242] text-white rounded-lg"
+              disabled={isLoading}
             />
           </div>
         </div>
       </div>
 
       {/* Gestion des casinos */}
-      <div className="mb-6 bg-[#1a1a1a] p-4 rounded-lg">
-        <h3 className="text-lg font-medium mb-3">Gestion des casinos</h3>
-
-        {/* Ajouter un nouveau casino */}
-        <div className="flex items-center gap-2 mb-4">
+      <div className="mb-8">
+        <h3 className="text-lg font-medium mb-4">Gestion des casinos</h3>
+        <div className="flex gap-2 mb-4">
           <input
             type="text"
             value={newCasinoName}
             onChange={(e) => setNewCasinoName(e.target.value)}
             placeholder="Nom du nouveau casino"
-            className="flex-1 p-2 rounded bg-[#212121] border border-[#424242] text-white"
+            className="flex-1 p-2.5 bg-[#171717] border border-[#424242] text-white rounded-lg"
+            disabled={isLoading}
           />
           <button
             onClick={handleAddCasino}
-            className="flex items-center gap-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#171717] transition-colors duration-200 border border-[#424242]"
+            disabled={isLoading || newCasinoName.trim() === ""}
+            className="flex items-center gap-2 px-4 py-2 bg-[#424242] hover:bg-[#525252] text-white rounded-lg transition-colors disabled:opacity-50"
           >
             <Plus size={16} />
             Ajouter
           </button>
         </div>
 
-        {/* Liste des casinos avec options de modification/suppression */}
-        <div className="mt-4 border border-[#424242] rounded-lg overflow-hidden">
-          <table className="w-full">
+        <div className="overflow-x-auto">
+          <table className="w-full border border-[#2a2a2a] rounded-lg overflow-hidden">
             <thead className="bg-[#212121]">
               <tr>
-                <th className="text-left p-3 border-b border-[#2a2a2a]">
-                  Nom du casino
+                <th className="text-left py-3 px-4 border-b border-[#2a2a2a]">
+                  Casino
                 </th>
-                <th className="text-right p-3 border-b border-[#2a2a2a]">
+                <th className="text-right py-3 px-4 border-b border-[#2a2a2a]">
                   Actions
                 </th>
               </tr>
@@ -1429,31 +3964,31 @@ const ReportEditor: React.FC<ReportEditorProps> = ({
             <tbody>
               {CASINOS.map((casino) => (
                 <tr key={casino} className="border-b border-[#2a2a2a]">
-                  <td className="p-3">
+                  <td className="py-3 px-4 font-medium">
                     {editingCasino === casino ? (
                       <input
                         type="text"
                         value={editCasinoName}
                         onChange={(e) => setEditCasinoName(e.target.value)}
-                        className="w-full p-2 rounded bg-[#212121] border border-[#424242] text-white"
+                        className="w-full p-2 bg-[#171717] border border-[#2a2a2a] text-white rounded"
                         autoFocus
                       />
                     ) : (
-                      <span className="font-medium">{casino}</span>
+                      casino
                     )}
                   </td>
-                  <td className="p-3 text-right">
+                  <td className="py-3 px-4 text-right">
                     {editingCasino === casino ? (
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={confirmEditCasino}
+                          onClick={() => confirmEditCasino()}
                           className="p-1 rounded-full hover:bg-green-800/30 text-green-500"
                           title="Confirmer"
                         >
                           <Check size={16} />
                         </button>
                         <button
-                          onClick={cancelEditCasino}
+                          onClick={() => cancelEditCasino()}
                           className="p-1 rounded-full hover:bg-red-800/30 text-red-500"
                           title="Annuler"
                         >
@@ -1678,6 +4213,62 @@ const ReportEditor: React.FC<ReportEditorProps> = ({
 };
 
 export default ReportEditor;
+
+===== StatsCard.tsx =====
+Chemin : ./src/app/dashboard/admin/components/StatsCard.tsx
+import React from "react";
+import { cn } from "@/lib/utils";
+import { LucideIcon } from "lucide-react";
+import { AdminCard, AdminCardContent } from "./ui/AdminCard";
+
+interface StatsCardProps {
+  title: string;
+  value: string | number;
+  icon: LucideIcon;
+  iconColor?: string;
+  trend?: {
+    value: number;
+    label: string;
+    positive?: boolean;
+  };
+  className?: string;
+}
+
+export function StatsCard({
+  title,
+  value,
+  icon: Icon,
+  iconColor = "text-blue-500",
+  trend,
+  className,
+}: StatsCardProps) {
+  return (
+    <AdminCard className={cn("overflow-hidden", className)}>
+      <AdminCardContent className="flex justify-between items-center">
+        <div className="flex-1">
+          <p className="text-sm text-gray-400">{title}</p>
+          <p className="text-2xl font-semibold mt-1">{value}</p>
+          {trend && (
+            <div className="flex items-center mt-1">
+              <span
+                className={cn(
+                  "text-xs font-medium",
+                  trend.positive ? "text-green-500" : "text-red-500"
+                )}
+              >
+                {trend.positive ? "+" : ""}{trend.value}%
+              </span>
+              <span className="text-xs text-gray-500 ml-1.5">{trend.label}</span>
+            </div>
+          )}
+        </div>
+        <div className={cn("p-3 rounded-full bg-opacity-10", iconColor.replace("text", "bg"))}>
+          <Icon className={cn("h-6 w-6", iconColor)} />
+        </div>
+      </AdminCardContent>
+    </AdminCard>
+  );
+} 
 
 ===== DashboardStats.tsx =====
 Chemin : ./src/app/dashboard/admin/components/DashboardStats.tsx
@@ -2500,4 +5091,363 @@ const CasinoPerformanceCard: React.FC<CasinoPerformanceCardProps> = ({ casinoNam
 };
 
 export default CasinoPerformanceCard;
+
+===== AdminButton.tsx =====
+Chemin : ./src/app/dashboard/admin/components/ui/AdminButton.tsx
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
+const adminButtonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+  {
+    variants: {
+      variant: {
+        primary: "bg-[#424242] text-white hover:bg-[#525252] active:bg-[#323232]",
+        secondary: "bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] active:bg-[#1a1a1a]",
+        outline: "border border-[#424242] bg-transparent hover:bg-[#252525] text-white",
+        ghost: "bg-transparent hover:bg-[#252525] text-white",
+        destructive: "bg-red-900/80 text-white hover:bg-red-900 active:bg-red-950",
+        success: "bg-green-900/80 text-white hover:bg-green-900 active:bg-green-950",
+        link: "text-blue-400 underline-offset-4 hover:underline p-0 h-auto hover:text-blue-500",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-8 rounded-md px-3 text-xs",
+        lg: "h-11 rounded-md px-6",
+        icon: "h-9 w-9 p-0",
+      },
+    },
+    defaultVariants: {
+      variant: "primary",
+      size: "default",
+    },
+  }
+);
+
+export interface AdminButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof adminButtonVariants> {
+  asChild?: boolean;
+  loading?: boolean;
+}
+
+export const AdminButton = React.forwardRef<HTMLButtonElement, AdminButtonProps>(
+  ({ className, variant, size, asChild = false, loading = false, children, disabled, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
+    
+    return (
+      <Comp
+        className={cn(adminButtonVariants({ variant, size, className }))}
+        ref={ref}
+        disabled={disabled || loading}
+        {...props}
+      >
+        {loading && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+        {children}
+      </Comp>
+    );
+  }
+);
+
+AdminButton.displayName = "AdminButton"; 
+
+===== AdminCard.tsx =====
+Chemin : ./src/app/dashboard/admin/components/ui/AdminCard.tsx
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+type AdminCardProps = React.HTMLAttributes<HTMLDivElement> & {
+  gradient?: boolean;
+};
+
+export const AdminCard = React.forwardRef<HTMLDivElement, AdminCardProps>(
+  ({ className, gradient = false, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn(
+        "rounded-xl border bg-[#171717] border-[#323232] text-white shadow-md overflow-hidden",
+        gradient && "bg-gradient-to-br from-[#1a1a1a] to-[#232323]",
+        className
+      )}
+      {...props}
+    />
+  )
+);
+AdminCard.displayName = "AdminCard";
+
+export const AdminCardHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col space-y-1 p-5 border-b border-[#323232]", className)}
+    {...props}
+  />
+));
+AdminCardHeader.displayName = "AdminCardHeader";
+
+export const AdminCardTitle = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("font-semibold text-lg leading-none tracking-tight", className)}
+    {...props}
+  />
+));
+AdminCardTitle.displayName = "AdminCardTitle";
+
+export const AdminCardDescription = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("text-sm text-gray-400", className)}
+    {...props}
+  />
+));
+AdminCardDescription.displayName = "AdminCardDescription";
+
+export const AdminCardContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-5", className)} {...props} />
+));
+AdminCardContent.displayName = "AdminCardContent";
+
+export const AdminCardFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex items-center p-5 border-t border-[#323232] bg-[#1a1a1a]", className)}
+    {...props}
+  />
+));
+AdminCardFooter.displayName = "AdminCardFooter"; 
+
+===== DateRangePicker.tsx =====
+Chemin : ./src/app/dashboard/admin/components/ui/DateRangePicker.tsx
+import React, { useState } from "react";
+import { Calendar as CalendarIcon, ChevronDown } from "lucide-react";
+import { DateRange } from "@/app/dashboard/admin/types";
+import { formatDateFr } from "@/app/dashboard/admin/constants";
+import { cn } from "@/lib/utils";
+import { AdminButton } from "./AdminButton";
+
+interface DateRangePickerProps {
+  value: DateRange;
+  onChange: (range: DateRange) => void;
+  className?: string;
+}
+
+type PredefinedRange = {
+  label: string;
+  getValue: () => DateRange;
+};
+
+export function DateRangePicker({ value, onChange, className }: DateRangePickerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const predefinedRanges: PredefinedRange[] = [
+    {
+      label: "Aujourd'hui",
+      getValue: () => {
+        const today = new Date();
+        const dateStr = today.toISOString().split("T")[0];
+        return {
+          startDate: dateStr,
+          endDate: dateStr,
+        };
+      },
+    },
+    {
+      label: "Hier",
+      getValue: () => {
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        const dateStr = yesterday.toISOString().split("T")[0];
+        return {
+          startDate: dateStr,
+          endDate: dateStr,
+        };
+      },
+    },
+    {
+      label: "7 derniers jours",
+      getValue: () => {
+        const today = new Date();
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 6);
+        return {
+          startDate: sevenDaysAgo.toISOString().split("T")[0],
+          endDate: today.toISOString().split("T")[0],
+        };
+      },
+    },
+    {
+      label: "30 derniers jours",
+      getValue: () => {
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 29);
+        return {
+          startDate: thirtyDaysAgo.toISOString().split("T")[0],
+          endDate: today.toISOString().split("T")[0],
+        };
+      },
+    },
+    {
+      label: "Ce mois",
+      getValue: () => {
+        const today = new Date();
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        return {
+          startDate: firstDayOfMonth.toISOString().split("T")[0],
+          endDate: today.toISOString().split("T")[0],
+        };
+      },
+    },
+    {
+      label: "Mois précédent",
+      getValue: () => {
+        const today = new Date();
+        const firstDayOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const lastDayOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+        return {
+          startDate: firstDayOfLastMonth.toISOString().split("T")[0],
+          endDate: lastDayOfLastMonth.toISOString().split("T")[0],
+        };
+      },
+    },
+  ];
+
+  const toggleDropdown = () => setIsOpen(!isOpen);
+
+  const handleSelectRange = (range: PredefinedRange) => {
+    onChange(range.getValue());
+    setIsOpen(false);
+  };
+
+  const handleCustomRangeChange = (field: keyof DateRange, value: string) => {
+    onChange({
+      ...value,
+      [field]: value,
+    });
+  };
+
+  return (
+    <div className={cn("relative", className)}>
+      <button
+        type="button"
+        onClick={toggleDropdown}
+        className="flex items-center w-full px-3 py-2 bg-[#1a1a1a] border border-[#323232] rounded-lg text-sm text-white hover:bg-[#252525] transition-colors"
+      >
+        <CalendarIcon className="mr-2 h-4 w-4 text-gray-400" />
+        <span>
+          {formatDateFr(value.startDate)} - {formatDateFr(value.endDate)}
+        </span>
+        <ChevronDown className="ml-auto h-4 w-4 text-gray-400" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-1 p-3 bg-[#1a1a1a] border border-[#323232] rounded-lg shadow-lg z-10 flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Date de début</label>
+              <input
+                type="date"
+                value={value.startDate}
+                onChange={(e) => handleCustomRangeChange("startDate", e.target.value)}
+                max={value.endDate}
+                className="w-full p-2 rounded bg-[#252525] border border-[#323232] text-white text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Date de fin</label>
+              <input
+                type="date"
+                value={value.endDate}
+                onChange={(e) => handleCustomRangeChange("endDate", e.target.value)}
+                min={value.startDate}
+                className="w-full p-2 rounded bg-[#252525] border border-[#323232] text-white text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-[#323232] pt-3">
+            <p className="text-xs text-gray-400 mb-2">Périodes prédéfinies</p>
+            <div className="grid grid-cols-2 gap-2">
+              {predefinedRanges.map((range) => (
+                <AdminButton
+                  key={range.label}
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleSelectRange(range)}
+                  className="w-full justify-start"
+                >
+                  {range.label}
+                </AdminButton>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+} 
+
+===== AdminTabs.tsx =====
+Chemin : ./src/app/dashboard/admin/components/ui/AdminTabs.tsx
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+interface AdminTabsProps {
+  tabs: {
+    id: string;
+    label: React.ReactNode;
+    disabled?: boolean;
+  }[];
+  activeTab: string;
+  onChange: (tabId: string) => void;
+  className?: string;
+}
+
+export function AdminTabs({ tabs, activeTab, onChange, className }: AdminTabsProps) {
+  return (
+    <div className={cn("border-b border-[#323232] overflow-x-auto", className)}>
+      <div className="flex">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => !tab.disabled && onChange(tab.id)}
+            disabled={tab.disabled}
+            className={cn(
+              "px-4 py-2.5 font-medium text-sm whitespace-nowrap transition-colors relative",
+              activeTab === tab.id
+                ? "text-white"
+                : "text-gray-400 hover:text-gray-300",
+              tab.disabled && "opacity-50 cursor-not-allowed"
+            )}
+          >
+            {tab.label}
+            {activeTab === tab.id && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+} 
 

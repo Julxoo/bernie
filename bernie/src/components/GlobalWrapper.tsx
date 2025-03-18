@@ -48,8 +48,6 @@ export default function GlobalWrapper({ children }: GlobalWrapperProps) {
       {/* Contenu principal */}
       <main
         className={`
-          pt-16   /* top padding (pour le header ou autre, si nécessaire) */
-          md:pt-4 md:p-8
           text-[#ECECEC] overflow-y-auto
           transition-all duration-300
           ${isSidebarOpen ? "md:ml-64" : ""}

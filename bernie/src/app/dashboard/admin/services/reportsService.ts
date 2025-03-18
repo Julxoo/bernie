@@ -1,7 +1,15 @@
 // src/app/dashboard/admin/services/reportsService.ts
 import * as XLSX from "xlsx";
-import { CASINOS, MONTHS, addCasino } from "../constants";
-import { CasinoReport } from "../types";
+import { 
+  CASINOS, 
+  MONTHS, 
+  addCasino, 
+  formatDate, 
+  getDayFromDate, 
+  getMonthFromDate, 
+  getYearFromDate 
+} from "../constants";
+import { CasinoReport, DateRange, StatFilter, StatResponse } from "../types";
 import { Session } from "next-auth";
 
 // Fonction pour récupérer tous les rapports
@@ -13,18 +21,31 @@ export async function fetchReports(): Promise<CasinoReport[]> {
   return await response.json();
 }
 
+// Fonction pour récupérer les rapports dans une plage de dates
+export async function fetchReportsByDateRange(dateRange: DateRange): Promise<CasinoReport[]> {
+  const response = await fetch(`/api/casino-reports/range?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`);
+  if (!response.ok) {
+    throw new Error('Erreur lors du chargement des rapports par plage de dates');
+  }
+  return await response.json();
+}
+
 // Fonction pour créer un nouveau rapport
 export function createNewReport(session?: Session | null): CasinoReport {
   const currentDate = new Date();
+  const formattedDate = formatDate(currentDate);
+  const currentDay = currentDate.getDate();
   const currentMonth = MONTHS[currentDate.getMonth()];
   const currentYear = currentDate.getFullYear();
   
   // Structure initiale du rapport
   const newReportData: CasinoReport = {
     template_id: 1,
-    template_name: "Rapport Performances Mensuelles",
+    template_name: "Rapport Performances Quotidiennes",
+    day: currentDay,
     month: currentMonth,
     year: currentYear,
+    date: formattedDate,
     created_at: new Date().toISOString(),
     data: {},
     user_id: session?.user?.id
@@ -49,7 +70,7 @@ export async function saveReport(report: CasinoReport): Promise<CasinoReport> {
     report.template_id = 1;
   }
   if (!report.template_name) {
-    report.template_name = "Rapport Performances Mensuelles";
+    report.template_name = "Rapport Performances Quotidiennes";
   }
 
   // Si le rapport a un ID, mise à jour, sinon création
@@ -97,7 +118,7 @@ export function generateExcel(report: CasinoReport): void {
   
   // En-tête de la feuille
   const sheetData = [
-    [`Rapport mensuel - ${report.month} ${report.year}`],
+    [`Rapport quotidien - ${report.day} ${report.month} ${report.year}`],
     []
   ];
   
@@ -202,45 +223,169 @@ export function generateExcel(report: CasinoReport): void {
   XLSX.writeFile(wb, `Rapport_${report.month}_${report.year}.xlsx`);
 }
 
+// Fonction pour récupérer les statistiques
+export async function fetchStats(filter: StatFilter): Promise<StatResponse> {
+  try {
+    const queryParams = new URLSearchParams({
+      startDate: filter.dateRange.startDate,
+      endDate: filter.dateRange.endDate,
+      groupBy: filter.groupBy,
+      metrics: filter.metrics.join(','),
+      casinos: filter.casinos.join(','),
+    });
+
+    const response = await fetch(`/api/stats?${queryParams.toString()}`);
+    
+    if (!response.ok) {
+      throw new Error(`Erreur API: ${response.status}`);
+    }
+    
+    // Pour le développement, simuler des données en attendant l'API réelle
+    if (process.env.NODE_ENV === 'development') {
+      return generateMockStats(filter);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Erreur lors de la récupération des statistiques:', error);
+    return generateMockStats(filter); // En cas d'erreur, on renvoie des données simulées
+  }
+}
+
+function generateMockStats(filter: StatFilter): StatResponse {
+  const { startDate, endDate } = filter.dateRange;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  const dataPoints: any[] = [];
+  const currentDate = new Date(start);
+  
+  // Générer des données pour chaque jour/semaine/mois selon le groupBy
+  while (currentDate <= end) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    
+    const point: any = {
+      date: dateStr,
+    };
+    
+    // Pour chaque casino et métrique, générer des données aléatoires
+    filter.casinos.forEach(casino => {
+      filter.metrics.forEach(metric => {
+        // Les données varient selon les métriques
+        let value = 0;
+        if (metric === 'TOTAL_DEPOSIT') {
+          value = Math.floor(Math.random() * 10000) + 500;
+        } else if (metric === 'PROFITS') {
+          value = Math.floor(Math.random() * 5000) + 100;
+        } else if (metric === 'SIGNUP') {
+          value = Math.floor(Math.random() * 50) + 5;
+        } else if (metric === 'FTD') {
+          value = Math.floor(Math.random() * 20) + 1;
+        } else if (metric === 'NGR') {
+          value = Math.floor(Math.random() * 8000) + 200;
+        }
+        
+        // Pour les données agrégées par jour
+        if (filter.groupBy === 'day') {
+          point[metric] = (point[metric] || 0) + value;
+          // Ajouter également des données par casino
+          point[`${casino}_${metric}`] = value;
+        } else {
+          // Pour les données agrégées (semaine, mois, année)
+          value *= (filter.groupBy === 'week' ? 7 : filter.groupBy === 'month' ? 30 : 365);
+          point[metric] = (point[metric] || 0) + value;
+          point[`${casino}_${metric}`] = value;
+        }
+      });
+    });
+    
+    dataPoints.push(point);
+    
+    // Avancer à la prochaine période selon le groupBy
+    if (filter.groupBy === 'day') {
+      currentDate.setDate(currentDate.getDate() + 1);
+    } else if (filter.groupBy === 'week') {
+      currentDate.setDate(currentDate.getDate() + 7);
+    } else if (filter.groupBy === 'month') {
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    } else {
+      currentDate.setFullYear(currentDate.getFullYear() + 1);
+    }
+  }
+  
+  // Générer des données pour la période précédente
+  const previousPeriod = {
+    deposits: Math.floor(Math.random() * 50000) + 10000,
+    profits: Math.floor(Math.random() * 25000) + 5000,
+    signups: Math.floor(Math.random() * 500) + 50,
+    ftd: Math.floor(Math.random() * 200) + 20,
+    ngr: Math.floor(Math.random() * 40000) + 8000,
+  };
+  
+  return {
+    data: dataPoints,
+    previousPeriod,
+    meta: {
+      total: dataPoints.length,
+      page: 1,
+      pageSize: 100
+    }
+  };
+}
+
 // Fonction pour importer un fichier Excel
 export function importExcel(file: File): Promise<CasinoReport> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        
-        // Récupérer la première feuille
+        const workbook = XLSX.read(data, { type: "array" });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
         
-        // Extraire le mois et l'année du titre
-        let month = "janvier";
-        let year = new Date().getFullYear();
+        // Extraire les informations du rapport depuis le titre
+        const titleRow = jsonData[0][0] as string;
+        let date = new Date();
         
-        if (jsonData[0] && jsonData[0][0]) {
-          const titleText = String(jsonData[0][0]);
-          const titleMatch = titleText.match(/(\w+)\s+(\d{4})/);
-          if (titleMatch) {
-            const potentialMonth = titleMatch[1].toLowerCase();
-            if (MONTHS.includes(potentialMonth)) {
-              month = potentialMonth;
-            }
+        // Si c'est un ancien format (mensuel)
+        if (titleRow.includes("Rapport mensuel")) {
+          const matches = titleRow.match(/Rapport mensuel - (\w+) (\d{4})/);
+          if (matches && matches.length >= 3) {
+            const monthName = matches[1];
+            const year = parseInt(matches[2]);
+            const monthIndex = MONTHS.indexOf(monthName.toLowerCase());
             
-            const potentialYear = parseInt(titleMatch[2]);
-            if (!isNaN(potentialYear) && potentialYear > 2000 && potentialYear < 2100) {
-              year = potentialYear;
+            if (monthIndex !== -1) {
+              date = new Date(year, monthIndex, 1);
+            }
+          }
+        } else if (titleRow.includes("Rapport quotidien")) {
+          // Nouveau format (quotidien)
+          const matches = titleRow.match(/Rapport quotidien - (\d{1,2}) (\w+) (\d{4})/);
+          if (matches && matches.length >= 4) {
+            const day = parseInt(matches[1]);
+            const monthName = matches[2];
+            const year = parseInt(matches[3]);
+            const monthIndex = MONTHS.indexOf(monthName.toLowerCase());
+            
+            if (monthIndex !== -1) {
+              date = new Date(year, monthIndex, day);
             }
           }
         }
         
-        // Initialiser un nouveau rapport
-        const newReportData: CasinoReport = {
+        const formattedDate = formatDate(date);
+        
+        // Créer la structure de rapport
+        const importedReport: CasinoReport = {
           template_id: 1,
-          template_name: "Rapport Performances Mensuelles",
-          month: month,
-          year: year,
+          template_name: "Rapport Performances Quotidiennes",
+          day: getDayFromDate(formattedDate),
+          month: getMonthFromDate(formattedDate),
+          year: getYearFromDate(formattedDate),
+          date: formattedDate,
           created_at: new Date().toISOString(),
           data: {}
         };
@@ -269,9 +414,9 @@ export function importExcel(file: File): Promise<CasinoReport> {
             const ftd = parseInt(String(row[3]) || "0");
             
             // Stocker les valeurs
-            newReportData.data[`${casino}_TOTAL_DEPOSIT`] = deposit.toString();
-            newReportData.data[`${casino}_SIGNUP`] = signup.toString();
-            newReportData.data[`${casino}_FTD`] = ftd.toString();
+            importedReport.data[`${casino}_TOTAL_DEPOSIT`] = deposit.toString();
+            importedReport.data[`${casino}_SIGNUP`] = signup.toString();
+            importedReport.data[`${casino}_FTD`] = ftd.toString();
           }
         }
         
@@ -305,18 +450,22 @@ export function importExcel(file: File): Promise<CasinoReport> {
               const profits = parseFloat(String(row[2]).replace(/[^\d.-]/g, '') || "0");
               
               // Stocker les valeurs
-              newReportData.data[`${casino}_NGR`] = ngr.toString();
-              newReportData.data[`${casino}_PROFITS`] = profits.toString();
+              importedReport.data[`${casino}_NGR`] = ngr.toString();
+              importedReport.data[`${casino}_PROFITS`] = profits.toString();
             }
           }
         }
         
-        resolve(newReportData);
-      } catch (err) {
-        reject(err);
+        resolve(importedReport);
+      } catch (error) {
+        reject(error);
       }
     };
-    reader.onerror = (e) => reject(e);
+    
+    reader.onerror = (error) => {
+      reject(error);
+    };
+    
     reader.readAsArrayBuffer(file);
   });
 }

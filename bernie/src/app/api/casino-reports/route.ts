@@ -1,50 +1,85 @@
-// src/app/api/casino-reports/route.ts
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
-export async function GET(request: Request) {
+export async function GET() {
   const supabase = createRouteHandlerClient({ cookies });
-
+  
   try {
+    // Récupérer l'utilisateur connecté
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Vous devez être connecté" },
+        { status: 401 }
+      );
+    }
+
+    // Récupérer les rapports de l'utilisateur courant, triés par date décroissante
     const { data, error } = await supabase
       .from("casino_reports")
       .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
+      .eq("user_id", session.user.id)
+      .order("date", { ascending: false });
+    
+    if (error) {
+      console.error("Erreur Supabase:", error);
+      return NextResponse.json(
+        { error: "Erreur lors de la récupération des rapports" },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(data || []);
   } catch (error) {
-    console.error("API error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Erreur du serveur:", error);
+    return NextResponse.json(
+      { error: "Erreur interne du serveur" },
+      { status: 500 }
+    );
   }
 }
 
-// src/app/api/casino-reports/route.ts
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   const supabase = createRouteHandlerClient({ cookies });
-  const data = await request.json();
-
-  // Vérifier et fournir des valeurs par défaut
-  if (!data.template_id) {
-    data.template_id = 1;
-  }
-  if (!data.template_name) {
-    data.template_name = "Rapport Performances Mensuelles";
-  }
-
+  
   try {
-    const { data: result, error } = await supabase
+    // Récupérer l'utilisateur connecté
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Vous devez être connecté" },
+        { status: 401 }
+      );
+    }
+    
+    const reportData = await req.json();
+    
+    // S'assurer que le user_id est celui de l'utilisateur actuel
+    reportData.user_id = session.user.id;
+    
+    const { data, error } = await supabase
       .from("casino_reports")
-      .insert([data])
-      .select();
-
-    if (error) throw error;
-
-    return NextResponse.json(result[0]);
+      .insert(reportData)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error("Erreur Supabase:", error);
+      return NextResponse.json(
+        { error: "Erreur lors de la création du rapport" },
+        { status: 500 }
+      );
+    }
+    
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("API error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Erreur du serveur:", error);
+    return NextResponse.json(
+      { error: "Erreur interne du serveur" },
+      { status: 500 }
+    );
   }
-}
+} 

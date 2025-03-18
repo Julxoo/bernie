@@ -51,3 +51,45 @@ export const MONTHS: string[] = [
   "novembre",
   "décembre",
 ];
+
+// Date Utilities
+export function formatDate(date: Date): string {
+  return date.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+export function formatDateFr(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+}
+
+export function parseDate(dateString: string): Date {
+  return new Date(dateString);
+}
+
+export function getCurrentDateFormatted(): string {
+  return formatDate(new Date());
+}
+
+export function getDayFromDate(dateString: string): number {
+  return new Date(dateString).getDate();
+}
+
+export function getMonthFromDate(dateString: string): string {
+  return MONTHS[new Date(dateString).getMonth()];
+}
+
+export function getYearFromDate(dateString: string): number {
+  return new Date(dateString).getFullYear();
+}
+
+// Grouping options for statistics
+export const GROUP_BY_OPTIONS = [
+  { value: "day", label: "Jour" },
+  { value: "week", label: "Semaine" },
+  { value: "month", label: "Mois" },
+  { value: "year", label: "Année" },
+];

@@ -10,6 +10,16 @@ export async function GET(
   const supabase = createRouteHandlerClient({ cookies });
   
   try {
+    // Vérifier l'authentification
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Vous devez être connecté" },
+        { status: 401 }
+      );
+    }
+
     const { data, error } = await supabase
       .from('casino_reports')
       .select('*')
@@ -19,7 +29,7 @@ export async function GET(
     if (error) throw error;
     
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: any) {
     console.error('API error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -32,6 +42,16 @@ export async function DELETE(
   const supabase = createRouteHandlerClient({ cookies });
   
   try {
+    // Vérifier l'authentification
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Vous devez être connecté" },
+        { status: 401 }
+      );
+    }
+
     const { error } = await supabase
       .from('casino_reports')
       .delete()
@@ -40,7 +60,7 @@ export async function DELETE(
     if (error) throw error;
     
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     console.error('API error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -54,6 +74,16 @@ export async function PUT(
   const data = await request.json();
   
   try {
+    // Vérifier l'authentification
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Vous devez être connecté" },
+        { status: 401 }
+      );
+    }
+
     const { data: result, error } = await supabase
       .from('casino_reports')
       .update(data)
@@ -63,7 +93,7 @@ export async function PUT(
     if (error) throw error;
     
     return NextResponse.json(result[0]);
-  } catch (error) {
+  } catch (error: any) {
     console.error('API error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

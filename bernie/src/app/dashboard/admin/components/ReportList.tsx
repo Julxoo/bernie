@@ -1,10 +1,15 @@
 // src/app/dashboard/admin/components/ReportList.tsx
-import React from "react";
+import React, { useState } from "react";
 import { useSession } from "next-auth/react";
-import { Plus, Upload, FileText, Download, Trash2, Calendar, BarChart2 } from "lucide-react";
+import { 
+  Plus, Upload, FileText, Download, Trash2, BarChart2,
+  Calendar as CalendarIcon, List, CalendarDays 
+} from "lucide-react";
 import { createNewReport, importExcel, deleteReport, generateExcel } from "../services/reportsService";
-import { CASINOS } from "../constants";
+import { CASINOS, formatDateFr, getCurrentDateFormatted } from "../constants";
 import { CasinoReport } from "../types";
+import CalendarView from "./CalendarView";
+import DatePickerInput from "./DatePickerInput";
 
 interface ReportListProps {
   reports: CasinoReport[];
@@ -16,10 +21,24 @@ interface ReportListProps {
 
 const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports, setActiveReport, setActiveTab }) => {
   const { data: session } = useSession();
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   
   // Gérer la création d'un nouveau rapport
-  const handleCreateReport = () => {
+  const handleCreateReport = (date?: string) => {
     const newReport = createNewReport(session);
+    
+    // Si une date est fournie, mettre à jour le rapport
+    if (date) {
+      const newDate = new Date(date);
+      newReport.date = date;
+      newReport.day = newDate.getDate();
+      newReport.month = [
+        "janvier", "février", "mars", "avril", "mai", "juin",
+        "juillet", "août", "septembre", "octobre", "novembre", "décembre"
+      ][newDate.getMonth()];
+      newReport.year = newDate.getFullYear();
+    }
+    
     setActiveReport(newReport);
     setActiveTab("edit");
   };
@@ -65,7 +84,13 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
     setTimeout(() => generateExcel(report), 100);
   };
 
-  // Regrouper les rapports par année
+  // Gérer l'édition d'un rapport
+  const handleEditReport = (report: CasinoReport) => {
+    setActiveReport(report);
+    setActiveTab("edit");
+  };
+
+  // Regrouper les rapports par année puis par mois
   const reportsByYear = React.useMemo(() => {
     const byYear: { [key: number]: CasinoReport[] } = {};
     
@@ -83,9 +108,11 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
       .map(year => ({
         year,
         reports: byYear[year].sort((a, b) => {
-          // Ordre des mois en français
+          // Trier d'abord par mois puis par jour
           const months = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
-          return months.indexOf(a.month) - months.indexOf(b.month);
+          const monthDiff = months.indexOf(b.month) - months.indexOf(a.month);
+          
+          return monthDiff !== 0 ? monthDiff : b.day - a.day;
         })
       }));
   }, [reports]);
@@ -109,7 +136,7 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
       {/* Statistiques rapides */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-[#1a1a1a] p-4 rounded-lg border border-[#424242] flex items-center">
-          <Calendar className="text-blue-500 mr-3" size={24} />
+          <CalendarDays className="text-blue-500 mr-3" size={24} />
           <div>
             <h4 className="text-sm text-gray-400">Rapports</h4>
             <p className="text-xl font-semibold">{stats.totalReports}</p>
@@ -151,28 +178,51 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
         </div>
       </div>
 
-      {/* Boutons d'action */}
-      <div className="mb-6 flex flex-wrap gap-4">
-        <button
-          onClick={handleCreateReport}
-          className="flex items-center gap-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#525252] transition-colors"
-        >
-          <Plus size={16} />
-          Nouveau rapport
-        </button>
+      {/* Boutons d'action et sélecteur de vue */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-4">
+          <button
+            onClick={() => handleCreateReport(getCurrentDateFormatted())}
+            className="flex items-center gap-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#525252] transition-colors"
+          >
+            <Plus size={16} />
+            Nouveau rapport
+          </button>
+          
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleImportExcel}
+              className="hidden"
+            />
+            <div className="flex items-center gap-2 px-4 py-2 bg-[#323232] text-[#ECECEC] rounded-lg hover:bg-[#424242] transition-colors">
+              <Upload size={16} />
+              Importer un Excel
+            </div>
+          </label>
+        </div>
         
-        <label className="cursor-pointer">
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleImportExcel}
-            className="hidden"
-          />
-          <div className="flex items-center gap-2 px-4 py-2 bg-[#323232] text-[#ECECEC] rounded-lg hover:bg-[#424242] transition-colors">
-            <Upload size={16} />
-            Importer un Excel
-          </div>
-        </label>
+        <div className="flex items-center bg-[#323232] rounded-lg overflow-hidden">
+          <button 
+            onClick={() => setViewMode("list")}
+            className={`flex items-center gap-2 px-4 py-2 ${
+              viewMode === "list" ? "bg-[#424242]" : "hover:bg-[#383838]"
+            } transition-colors`}
+          >
+            <List size={16} />
+            Liste
+          </button>
+          <button 
+            onClick={() => setViewMode("calendar")}
+            className={`flex items-center gap-2 px-4 py-2 ${
+              viewMode === "calendar" ? "bg-[#424242]" : "hover:bg-[#383838]"
+            } transition-colors`}
+          >
+            <CalendarIcon size={16} />
+            Calendrier
+          </button>
+        </div>
       </div>
       
       {isLoading ? (
@@ -191,7 +241,7 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <button
-              onClick={handleCreateReport}
+              onClick={() => handleCreateReport()}
               className="flex items-center gap-2 px-4 py-2 bg-[#424242] text-[#ECECEC] rounded-lg hover:bg-[#525252] transition-colors"
             >
               <Plus size={16} />
@@ -212,6 +262,14 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
             </label>
           </div>
         </div>
+      ) : viewMode === "calendar" ? (
+        <CalendarView 
+          reports={reports}
+          onEditReport={handleEditReport}
+          onDeleteReport={handleDeleteReport}
+          onExportReport={handleExport}
+          onCreateReport={handleCreateReport}
+        />
       ) : (
         <div>
           {reportsByYear.map(({ year, reports }) => (
@@ -221,7 +279,7 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-[#424242]">
-                      <th className="text-left p-4">Mois</th>
+                      <th className="text-left p-4">Date</th>
                       <th className="text-left p-4">Total Dépôts</th>
                       <th className="text-left p-4">Total Profits</th>
                       <th className="text-left p-4">Date de création</th>
@@ -241,32 +299,29 @@ const ReportList: React.FC<ReportListProps> = ({ reports, isLoading, setReports,
                       
                       return (
                         <tr key={report.id} className="border-b border-[#424242] hover:bg-[#1d1d1d]">
-                          <td className="p-4 font-medium capitalize">{report.month}</td>
+                          <td className="p-4 font-medium">{formatDateFr(report.date)}</td>
                           <td className="p-4">{totalDeposit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</td>
                           <td className="p-4">{totalProfits.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</td>
                           <td className="p-4">{new Date(report.created_at).toLocaleDateString('fr-FR')}</td>
                           <td className="p-4 text-right">
                             <div className="flex items-center justify-end gap-2">
                               <button 
-                                className="p-2 hover:bg-[#212121] rounded-full"
-                                onClick={() => {
-                                  setActiveReport(report);
-                                  setActiveTab("edit");
-                                }}
-                                title="Voir/Modifier"
+                                onClick={() => handleEditReport(report)}
+                                className="p-1 rounded-full hover:bg-blue-900/30 text-blue-400"
+                                title="Éditer"
                               >
                                 <FileText size={16} />
                               </button>
                               <button 
-                                className="p-2 hover:bg-[#212121] rounded-full"
                                 onClick={() => handleExport(report)}
-                                title="Télécharger"
+                                className="p-1 rounded-full hover:bg-green-900/30 text-green-400"
+                                title="Exporter en Excel"
                               >
                                 <Download size={16} />
                               </button>
                               <button 
-                                className="p-2 hover:bg-[#212121] rounded-full text-red-500"
                                 onClick={() => report.id && handleDeleteReport(report.id)}
+                                className="p-1 rounded-full hover:bg-red-900/30 text-red-400"
                                 title="Supprimer"
                               >
                                 <Trash2 size={16} />
