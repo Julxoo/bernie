@@ -1,0 +1,174 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Règles de Refactorisation pour BigWater
+
+## Directives Générales
+- **Toujours exécuter `npm run lint` après chaque refactorisation** pour s'assurer qu'aucune erreur ESLint n'est introduite
+- Corriger immédiatement toute erreur ou warning ESLint avant de poursuivre
+- Ne jamais commit de code avec des erreurs de linting
+
+## 1. Architecture des Composants
+
+### Séparation Client/Serveur
+- Identifier clairement les composants serveur et client
+- Utiliser `'use client'` uniquement lorsque l'interactivité est nécessaire
+- Privilégier les Server Components pour le chargement initial des données et le rendu statique
+- Maintenir une frontière claire entre les composants client et serveur
+- Isoler les éléments interactifs dans des composants clients dédiés et réutilisables
+
+### Structure des Répertoires
+- Organiser le code selon une hiérarchie claire et intuitive:
+  - `/app`: Routes et pages Next.js
+  - `/components`: Organisés par domaine fonctionnel, pas par type
+  - `/lib`: Utilitaires et fonctions partagées
+  - `/hooks`: Hooks React personnalisés
+  - `/services`: Services d'API et logique métier
+  - `/types`: Définitions de types TypeScript
+  - `/providers`: Providers de contexte et d'état
+  - `/utils`: Utilitaires généraux
+  - `/styles`: Styles globaux ou configurations Tailwind
+- Garder les composants ui génériques dans un dossier `/components/ui`
+- Regrouper les composants métier par domaine fonctionnel (ex: `/components/video`)
+
+## 2. Externalisation de la Logique Backend
+
+### Architecture des Services API
+- Créer une couche de services distincte pour toutes les interactions avec l'API
+- Structurer les services par domaine:
+  - Services vidéos
+  - Services catégories
+  - Services utilisateurs/auth
+- Chaque service doit avoir un point d'entrée principal (index.ts) exportant toutes les fonctions
+- Séparer chaque fonction de service dans son propre fichier pour faciliter la maintenance
+- Ne jamais appeler directement Supabase ou toute autre API externe dans un composant
+
+### Principes pour les Services
+- Implémenter une gestion d'erreur robuste dans chaque service
+- Utiliser des types de retour explicites pour toutes les fonctions
+- Logger les erreurs de manière appropriée
+- Traiter les cas d'erreur avant de retourner les données
+- Ne pas exposer d'information sensible dans les erreurs retournées
+- Maintenir une signature de fonction cohérente pour tous les services
+
+## 3. Hooks Personnalisés
+
+### Organisation des Hooks
+- Créer des hooks personnalisés pour encapsuler la logique réutilisable
+- Organiser les hooks par domaine fonctionnel:
+  - Hooks API pour les requêtes de données
+  - Hooks UI pour les interactions utilisateur
+  - Hooks utilitaires pour la logique partagée
+- Nommer les hooks en commençant par "use" conformément aux conventions React
+
+### Principes pour les Hooks
+- Chaque hook doit avoir une responsabilité unique
+- Implémenter une gestion d'état complète (données, chargement, erreur)
+- Utiliser useCallback pour les fonctions exposées par le hook
+- Gérer proprement les effets secondaires avec useEffect
+- Fournir des méthodes de nettoyage pour les abonnements et timers
+- Documenter l'interface et l'usage de chaque hook
+
+## 4. Typage Strict avec TypeScript
+
+### Principes de Typage
+- Définir des interfaces explicites pour toutes les entités métier
+- Utiliser des types d'union pour les valeurs énumérées plutôt que des chaînes génériques
+- Éviter l'utilisation de `any` et préférer des types génériques ou `unknown` si nécessaire
+- Définir des types pour les paramètres de filtrage et de tri
+- Utiliser des types utilitaires (Partial, Omit, Pick) pour dériver des types liés
+- Créer des types spécifiques pour les réponses d'API et états de formulaires
+- S'assurer que tous les paramètres et valeurs de retour des fonctions sont typés
+
+### Organisation des Types
+- Regrouper les types par domaine fonctionnel
+- Utiliser des fichiers séparés pour les types complexes
+- Créer des index.ts pour exporter tous les types d'un domaine
+- Maintenir la cohérence entre les types frontend et les modèles de données backend
+
+## 5. Composants Intelligents vs Composants de Présentation
+
+### Composants de Présentation (UI)
+- Ne contiennent que du JSX et des styles
+- Ne possèdent pas d'état interne complexe
+- Reçoivent toutes leurs données via les props
+- Ne contiennent pas de logique métier
+- Sont facilement testables et réutilisables
+- Utilisent des interfaces TypeScript explicites pour leurs props
+
+### Composants Intelligents (Container)
+- Gèrent l'état et les effets de bord
+- Utilisent les hooks et les services
+- Orchestrent la logique d'application
+- Passent les données aux composants de présentation
+- Implémentent la gestion d'erreur et les états de chargement
+- S'occupent du routage et de la navigation
+
+## 6. Gestion des États
+
+### Principes de Gestion d'État
+- Utiliser les états locaux (useState) pour les données spécifiques à un composant
+- Utiliser le Context API pour partager l'état entre des composants proches
+- Éviter les props drilling en utilisant des contextes appropriés
+- Structurer l'état global par domaine fonctionnel
+- Séparer la logique de récupération de données de la gestion d'état UI
+
+### Bonnes Pratiques
+- Implémenter des sélecteurs pour accéder aux parties spécifiques de l'état
+- Éviter les mises à jour d'état imbriquées qui peuvent provoquer des re-rendus inutiles
+- Utiliser l'immutabilité pour toutes les mises à jour d'état
+- Documenter la structure d'état et les interactions entre composants
+- Centraliser les mises à jour d'état complexes dans des actions/reducers
+
+## 7. Gestion des Erreurs
+
+### Stratégie de Gestion d'Erreur
+- Utiliser des Error Boundaries pour capturer les erreurs de rendu
+- Implémenter une gestion d'erreurs hiérarchique (composant, page, application)
+- Créer des composants d'erreur réutilisables pour différents contextes
+- Logger les erreurs côté serveur pour le debugging
+- Présenter des messages d'erreur utiles et actionnables pour les utilisateurs
+
+### Implémentation
+- Créer une classe ErrorBoundary réutilisable
+- Définir des fallbacks appropriés pour chaque niveau de l'application
+- Capturer et traiter les erreurs dans les services API
+- Normaliser la structure des erreurs dans toute l'application
+- Implémenter des mécanismes de retry pour les opérations réseau importantes
+
+## 8. Performance
+
+### Optimisation des Rendus
+- Utiliser React.memo pour les composants purement présentationnels avec des props stables
+- Implémenter useCallback pour les gestionnaires d'événements passés aux composants enfants
+- Utiliser useMemo pour les calculs coûteux
+- Implémenter la virtualisation pour les listes longues
+- Diviser les composants volumineux en sous-composants plus petits et ciblés
+
+### Chargement et Données
+- Implémenter du lazy loading pour les composants volumineux
+- Utiliser des suspense boundaries pour le chargement progressif
+- Mettre en place des stratégies de mise en cache efficaces
+- Optimiser les requêtes API pour éviter le sur-fetching
+- Implémenter des stratégies de pré-chargement pour les données fréquemment utilisées
+
+## Exemples de Refactorisation
+
+### Principes généraux
+- Commencer par identifier les responsabilités mixtes
+- Extraire la logique métier dans des services dédiés
+- Créer des hooks pour la logique réutilisable
+- Diviser les composants volumineux en composants plus petits et ciblés
+- Définir des types stricts pour toutes les entités
+- Assurer la séparation client/serveur appropriée
+- Implémenter une gestion d'erreur robuste à tous les niveaux
+
+## Validation Finale
+- Exécuter `npm run lint` pour vérifier les erreurs ESLint
+- Corriger toutes les erreurs et warnings avant de finaliser
+- Tester sur tous les appareils et tailles d'écran cibles
+- Vérifier la performance dans l'outil de développement Next.js
+- S'assurer que tous les tests passent
+- Documenter les changements majeurs d'architecture
