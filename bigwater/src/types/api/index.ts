@@ -89,7 +89,7 @@ export interface CasinoReport {
   year: number;
   date: string;
   created_at: string | null;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
 } 
 
 export interface VideoDetails {

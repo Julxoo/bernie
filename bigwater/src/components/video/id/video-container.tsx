@@ -439,7 +439,6 @@ const STATUSES = [
 export function VideoContainer({ 
   video, 
   category, 
-  userId,
   returnUrl 
 }: VideoContainerProps) {
   // S'assurer que video_details existe

@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { type CookieOptions } from '@supabase/ssr';
 
 export async function createClient() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,7 +16,7 @@ export async function createClient() {
         async set(name: string, value: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value, ...options });
-          } catch (error) {
+          } catch {
             // Les erreurs peuvent se produire si l'objet de réponse a déjà été envoyé
             // Nous pouvons les ignorer en toute sécurité dans ce contexte
           }
@@ -24,7 +24,7 @@ export async function createClient() {
         async remove(name: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value: '', ...options });
-          } catch (error) {
+          } catch {
             // Les erreurs peuvent se produire si l'objet de réponse a déjà été envoyé
             // Nous pouvons les ignorer en toute sécurité dans ce contexte
           }

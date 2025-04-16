@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 
 import { resetPasswordAction } from "@/app/actions";
-import { FormMessage, Message } from "@/components/form-message";
+import { FormMessage } from "@/components/form-message";
+import type { Message } from "@/types/common";
 import Logo from "@/components/logo";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/inputs/input";

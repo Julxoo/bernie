@@ -51,7 +51,7 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [nextIdentifier, setNextIdentifier] = useState<number | null>(null);
+  const [, setNextIdentifier] = useState<number | null>(null);
   const [previewIdentifier, setPreviewIdentifier] = useState<string>("--");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -71,9 +71,7 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
     async function loadCategories() {
       const supabase = createClient();
       
-      try {
-        console.log("Chargement des catégories...");
-        
+      try {        
         // Récupérer toutes les informations des catégories
         const { data, error } = await supabase
           .from('video_categories')
@@ -82,27 +80,11 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
 
         if (error) throw error;
         
-        if (data && isMounted) {
-          console.log("Catégories chargées (données complètes):", data);
-          
-          // Vérifier la structure des données et les identifiants
-          data.forEach((cat: Category, index: number) => {
-            console.log(`Catégorie ${index + 1}:`, {
-              id: cat.id,
-              titre: cat.title,
-              identifiant: cat.identifier,
-              typeIdentifiant: typeof cat.identifier
-            });
-          });
-          
+        if (data && isMounted) {          
           setCategories(data);
-          
-          // Si une catégorie est déjà sélectionnée, charger le prochain identifiant
           if (categoryId) {
-            console.log("Catégorie pré-sélectionnée:", categoryId);
             const selectedCat = data.find((cat: {id: number}) => cat.id === categoryId);
             if (selectedCat && isMounted) {
-              console.log("Catégorie trouvée:", selectedCat);
               await loadNextIdentifier(categoryId, isMounted);
             } else {
               console.warn("Catégorie pré-sélectionnée non trouvée dans les données:", categoryId);
@@ -135,9 +117,7 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
     
     const supabase = createClient();
     
-    try {
-      console.log("Récupération d'identifiant pour catégorie:", catId);
-      
+    try {      
       const { data, error } = await supabase
         .from("category_videos")
         .select("identifier")
@@ -151,16 +131,11 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
       }
       if (!isMounted) return;
 
-      console.log("Données vidéos pour cette catégorie:", data);
-
       const nextId = data.length > 0 && data[0].identifier
         ? (data[0].identifier + 1)
         : 1;
       
       setNextIdentifier(nextId);
-      
-      // Récupérer la catégorie pour obtenir son identifiant
-      console.log("Récupération des données de la catégorie:", catId);
       
       const { data: catData, error: catError } = await supabase
         .from("video_categories")
@@ -173,29 +148,17 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
         throw catError;
       }
       if (!isMounted) return;
-      
-      console.log("Catégorie récupérée (données complètes):", catData);
-      
-      // Mettre à jour la prévisualisation avec l'identifiant correct de la catégorie
+            
       if (catData && catData.identifier !== undefined) {
-        // Convertir l'identifiant de catégorie en lettre (1 => A, 2 => B, etc.)
         const catIdentifier = catData.identifier;
         let categoryPrefix;
         
         try {
-          // S'assurer que l'identifiant est un nombre valide pour la conversion
           if (typeof catIdentifier === 'number' && catIdentifier > 0 && catIdentifier < 27) {
             categoryPrefix = String.fromCharCode(64 + catIdentifier);
           } else {
-            // Si l'identifiant est hors plage, utiliser l'identifiant tel quel
             categoryPrefix = catIdentifier.toString();
           }
-          
-          console.log("Conversion identifiant: ", {
-            original: catIdentifier,
-            converted: categoryPrefix,
-            type: typeof catIdentifier
-          });
           
           setPreviewIdentifier(`#${categoryPrefix}-${nextId}`);
         } catch (error) {
@@ -215,32 +178,8 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
     }
   }
 
-  // Mettre à jour la prévisualisation de l'identifiant
-  function updatePreviewIdentifier(catId: number, videoId: number) {
-    // Cette fonction n'est plus utilisée car nous récupérons directement
-    // l'identifiant de la catégorie depuis la base de données dans loadNextIdentifier
-    const category = categories.find(c => c.id === catId);
-    if (!category) {
-      setPreviewIdentifier("--");
-      return;
-    }
-    
-    // Vérifier que nous avons bien un identifiant de catégorie
-    if (!category.identifier) {
-      console.error("Erreur: L'identifiant de catégorie est manquant", category);
-      setPreviewIdentifier(`#?-${videoId}`);
-      return;
-    }
-    
-    // Convertir l'identifiant de catégorie en lettre (1 => A, 2 => B, etc.)
-    const categoryPrefix = String.fromCharCode(64 + category.identifier);
-    setPreviewIdentifier(`#${categoryPrefix}-${videoId}`);
-  }
-
   // Gérer le changement de catégorie
-  const handleCategoryChange = async (value: string) => {
-    console.log("Changement de catégorie:", value);
-    
+  const handleCategoryChange = async (value: string) => {    
     try {
       // Parse en nombre avec vérification
       const catId = parseInt(value, 10);
@@ -250,13 +189,10 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
         return;
       }
       
-      // Mettre à jour le formulaire
       form.setValue("category_id", value);
       
-      // Vider temporairement l'identifiant pour montrer le chargement
       setPreviewIdentifier("Chargement...");
       
-      // Charger le nouvel identifiant
       await loadNextIdentifier(catId);
       
     } catch (error) {
@@ -270,12 +206,6 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
     try {
       const catId = parseInt(data.category_id);
       
-      // Logging pour déboguer
-      console.log("Soumission du formulaire avec les données:", {
-        categoryId: catId,
-        title: data.title
-      });
-      
       await videoService.createNewVideo(catId, {
         title: data.title,
         production_status: "À monter" as VideoStatus,
@@ -283,10 +213,8 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
 
       toast.success("Vidéo créée avec succès");
       
-      // Rafraîchir la page
       router.refresh();
       
-      // Fermer le dialogue si une fonction de succès est fournie
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error("Erreur lors de la création de la vidéo:", error);

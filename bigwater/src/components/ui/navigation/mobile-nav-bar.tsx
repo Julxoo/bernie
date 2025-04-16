@@ -60,7 +60,7 @@ export function MobileNavBar({ isAdmin = false }: MobileNavBarProps) {
       activePattern: /^\/categories|^\/category\//
     },
     {
-      href: "/profil",
+      href: "/profile",
       label: "Profil",
       icon: <UserIcon className="h-5 w-5" />, 
       activePattern: /^\/categories|^\/category\//

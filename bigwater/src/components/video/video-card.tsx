@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/data-display/badge';
 import { Card, CardContent } from '@/components/ui/layout/card';
 import { cn } from '@/lib/utils';
-
+import Image from 'next/image';
 
 
 export type VideoCardProps = {
@@ -222,7 +222,7 @@ export function VideoCard({
             effectiveSize === 'large' && "h-32 sm:h-36 md:h-40 lg:h-48",
             effectiveSize === 'default' && "h-28 sm:h-32 md:h-36 lg:h-40"
           )}>
-            <img 
+            <Image
               src={video.thumbnail_url} 
               alt={`Vignette pour ${video.title}`}
               className="w-full h-full object-cover"

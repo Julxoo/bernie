@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 
 import { createClient } from '@/services/supabase/client';
+import { VideoCategory } from '@/types/api';
 
 export type SearchResultType = 'video' | 'category';
 
@@ -15,6 +16,20 @@ export interface SearchResult {
     title?: string;
     identifier?: string;
   };
+}
+
+interface CategorySearchResult {
+  id: number;
+  title: string;
+  identifier?: string;
+}
+
+interface VideoSearchResult {
+  id: number;
+  title: string;
+  identifier?: string;
+  category_id: number;
+  video_categories: VideoCategory;
 }
 
 export function useSearch() {
@@ -61,14 +76,14 @@ export function useSearch() {
         }
 
         const formattedResults: SearchResult[] = [
-          ...categories.map((category: any) => ({
+          ...categories.map((category: CategorySearchResult) => ({
             id: category.id,
             title: category.title,
             type: 'category' as SearchResultType,
-            url: `/category/${category.id}`,
+            url: `/categories/${category.id}`,
             identifier: category.identifier
           })),
-          ...videos.map((video: any) => ({
+          ...videos.map((video: VideoSearchResult) => ({
             id: video.id,
             title: video.title,
             type: 'video' as SearchResultType,

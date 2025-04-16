@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
+import { CookieOptions } from '@supabase/ssr';
 
 export function createClient(request: NextRequest) {
   // Créer une nouvelle instance de response basée sur la requête existante
@@ -17,7 +18,7 @@ export function createClient(request: NextRequest) {
         get(name: string) {
           return request.cookies.get(name)?.value;
         },
-        set(name: string, value: string, options: any) {
+        set(name: string, value: string, options: CookieOptions) {
           // Si la valeur est vide, cela équivaut à supprimer le cookie
           if (value === '') {
             response.cookies.delete(name);
@@ -29,7 +30,7 @@ export function createClient(request: NextRequest) {
             ...options,
           });
         },
-        remove(name: string, options: any) {
+        remove(name: string) {
           response.cookies.delete(name);
         },
       },

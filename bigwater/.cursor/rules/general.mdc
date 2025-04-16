@@ -6,8 +6,8 @@ alwaysApply: true
 # Règles de Refactorisation pour BigWater
 
 ## Directives Générales
-- **Toujours exécuter `npm run lint` après chaque refactorisation** pour s'assurer qu'aucune erreur ESLint n'est introduite
-- Corriger immédiatement toute erreur ou warning ESLint avant de poursuivre
+- **Toujours exécuter `npm run lint` & `npm run build`après chaque refactorisation** pour s'assurer qu'aucune erreur ESLint ou de build n'est introduite
+- Corriger immédiatement toute erreur ou warning ESLint ou erreur de build avant de poursuivre
 - Ne jamais commit de code avec des erreurs de linting
 
 ## 1. Architecture des Composants

@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/inputs/input";
 import { categoryService } from "@/lib/services";
+import { Card, CardContent } from "@/components/ui/layout/card";
+import { Label } from "@/components/ui/label";
 
 
 const categoryFormSchema = z.object({
@@ -33,6 +35,44 @@ interface NewCategoryFormProps {
 export function NewCategoryForm({ onSuccess }: NewCategoryFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [nextIdentifier, setNextIdentifier] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchNextIdentifier() {
+      try {
+        setIsLoading(true);
+        const categories = await categoryService.getCategories();
+        
+        let newIdentifier;
+        if (categories.length > 0) {
+          const lastCategory = categories.sort((a, b) => {
+            if (!a.identifier || !b.identifier) return 0;
+            return a.identifier > b.identifier ? -1 : 1;
+          })[0];
+          
+          if (lastCategory.identifier) {
+            const lastLetter = lastCategory.identifier.toString().charAt(0);
+            const nextLetterCode = lastLetter.charCodeAt(0) + 1;
+            newIdentifier = String.fromCharCode(nextLetterCode);
+          } else {
+            newIdentifier = 'A';
+          }
+        } else {
+          newIdentifier = 'A';
+        }
+        
+        setNextIdentifier(newIdentifier);
+      } catch (error) {
+        console.error("Erreur lors de la récupération de l'identifiant:", error);
+        setNextIdentifier('?');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    fetchNextIdentifier();
+  }, []);
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categoryFormSchema),
@@ -76,6 +116,20 @@ export function NewCategoryForm({ onSuccess }: NewCategoryFormProps) {
             </FormItem>
           )}
         />
+
+        <Card className="border-dashed bg-muted/40">
+          <CardContent className="p-4">
+            <Label className="text-sm font-medium">Identifiant de catégorie</Label>
+            <div className="flex items-center mt-2">
+              <div className="bg-primary text-primary-foreground w-10 h-10 rounded-md flex items-center justify-center text-lg font-bold">
+                {isLoading ? '...' : nextIdentifier}
+              </div>
+              <span className="ml-3 text-sm text-muted-foreground">
+                Identifiant automatique pour cette catégorie
+              </span>
+            </div>
+          </CardContent>
+        </Card>
 
         <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting ? "Création en cours..." : "Créer la catégorie"}

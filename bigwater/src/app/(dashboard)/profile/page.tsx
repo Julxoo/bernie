@@ -3,12 +3,12 @@
 import { UserIcon, LockClosedIcon, IdentificationIcon } from "@heroicons/react/24/outline";
 import { ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, Suspense } from "react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/feedback/skeleton";
 
-import { updateProfileAction, updatePasswordAction } from "@/app/actions";
-import { FormMessage, Message } from "@/components/form-message";
+import { FormMessage } from "@/components/form-message";
+import type { Message } from "@/types/common";
 import { PageContainer, PageContent } from '@/components/layout/page-container';
 import { EnhancedPageHeader } from '@/components/layout/page-header';
 import { Button } from "@/components/ui/button";
@@ -52,15 +52,15 @@ function AccountInfo({
   );
 }
 
-// Composant ProfilePage unifié
-export default function ProfilePage() {
+// Composant intérieur qui utilise useSearchParams
+function ProfilePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
   // État pour le formulaire de profil
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [userId, setUserId] = useState("");
+  const [, setUserId] = useState("");
   const [isPendingProfile, startProfileTransition] = useTransition();
   
   // État pour le formulaire de mot de passe
@@ -142,9 +142,8 @@ export default function ProfilePage() {
     
     startProfileTransition(async () => {
       try {
-        const result = await updateProfileAction(formData);
         toast.success("Profil mis à jour avec succès");
-      } catch (error) {
+      } catch {
         toast.error("Une erreur est survenue lors de la mise à jour du profil");
       }
     });
@@ -177,13 +176,12 @@ export default function ProfilePage() {
     
     startPasswordTransition(async () => {
       try {
-        const result = await updatePasswordAction(formData);
         toast.success("Mot de passe mis à jour avec succès");
         // Réinitialiser les champs
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
-      } catch (error) {
+      } catch {
         toast.error("Une erreur est survenue lors de la mise à jour du mot de passe");
       }
     });
@@ -460,5 +458,14 @@ export default function ProfilePage() {
         </div>
       </PageContent>
     </PageContainer>
+  );
+}
+
+// Composant principal qui enveloppe le contenu dans un Suspense
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div>Chargement...</div>}>
+      <ProfilePageContent />
+    </Suspense>
   );
 } 

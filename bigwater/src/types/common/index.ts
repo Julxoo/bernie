@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+// import { ReactNode } from 'react';
 
 /**
  * Types de messages pour les notifications et formulaires
@@ -31,7 +31,7 @@ export interface TooltipPayloadItem {
   name: string;
   value: number | string;
   color: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**

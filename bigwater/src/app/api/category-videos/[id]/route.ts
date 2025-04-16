@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createClient();
-  const id = params.id;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function GET(request: NextRequest, context: any) {
+  const supabase = await createClient();
+  const id = context.params.id;
   
   const { data, error } = await supabase
     .from('category_videos')
@@ -24,12 +22,10 @@ export async function GET(
   return NextResponse.json(data);
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createClient();
-  const id = params.id;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function PUT(request: NextRequest, context: any) {
+  const supabase = await createClient();
+  const id = context.params.id;
   const body = await request.json();
   
   const { data, error } = await supabase
@@ -45,12 +41,10 @@ export async function PUT(
   return NextResponse.json(data);
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createClient();
-  const id = params.id;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function DELETE(request: NextRequest, context: any) {
+  const supabase = await createClient();
+  const id = context.params.id;
   
   const { error } = await supabase
     .from('category_videos')

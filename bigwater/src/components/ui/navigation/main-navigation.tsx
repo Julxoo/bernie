@@ -3,19 +3,19 @@
 import { 
   HomeIcon, 
   VideoCameraIcon, 
-  ChartBarIcon, 
   UserIcon,
   ShieldCheckIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
   FolderIcon,
   Squares2X2Icon,
-  ArrowLeftIcon
+  ArrowLeftIcon,
 } from "@heroicons/react/24/outline";
 import { LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState, useRef } from "react";
+import * as React from "react"
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/overlays/dialog";
@@ -32,6 +32,14 @@ interface NavItemProps {
   label: string;
   isActive: boolean;
   highlight?: boolean;
+}
+
+interface NavItemType {
+  href: string;
+  icon: ReactNode;
+  label: string;
+  highlight?: boolean;
+  activePattern?: RegExp;
 }
 
 const NavItem = ({ href, icon, label, isActive, highlight }: NavItemProps) => {
@@ -62,15 +70,15 @@ const NavItem = ({ href, icon, label, isActive, highlight }: NavItemProps) => {
 const DesktopSidebar = ({ 
   navItems, 
   pathname,
-  userEmail,
   onSignOut,
-  isAdminMode
+  isAdminMode,
+  userEmail
 }: { 
-  navItems: any[], 
+  navItems: NavItemType[], 
   pathname: string,
-  userEmail?: string,
   onSignOut: () => void,
-  isAdminMode: boolean
+  isAdminMode: boolean,
+  userEmail?: string | null
 }) => {
   return (
     <aside className="fixed left-0 top-0 z-30 hidden h-full w-60 sm:w-64 lg:w-72 flex-col border-r bg-background md:flex" aria-label="Navigation principale">
@@ -98,7 +106,7 @@ const DesktopSidebar = ({
       {/* Section utilisateur */}
       <div className="border-t p-3 sm:p-4 mt-auto">
         {userEmail && (
-          <div className="mb-2 px-2 text-xs sm:text-sm text-muted-foreground truncate" role="status" aria-label="Connecté en tant que">
+          <div className="mb-3 text-sm text-muted-foreground truncate" role="status" aria-label="Connecté en tant que">
             {userEmail}
           </div>
         )}
@@ -126,7 +134,7 @@ const MobileMenu = ({
   onClose,
   isAdminMode
 }: { 
-  navItems: any[],
+  navItems: NavItemType[],
   pathname: string,
   userEmail?: string,
   onSignOut: () => void,
@@ -206,7 +214,6 @@ const Header = ({
   pathname,
   showSearch,
   setShowSearch,
-  userEmail,
   onSignOut,
   isAdminMode
 }: { 
@@ -246,8 +253,8 @@ const Header = ({
     if (path.startsWith("/profile")) return "Profil";
     if (path.startsWith("/admin")) return "Administration";
     if (path.startsWith("/settings")) return "Paramètres";
-    if (path.startsWith("/users")) return "Utilisateurs";
-    if (path.startsWith("/casino-reports")) return "Rapports Casino";
+    // if (path.startsWith("/users")) return "Utilisateurs";
+    // if (path.startsWith("/casino-reports")) return "Rapports Casino";
     return "BigWater";
   };
 
@@ -467,16 +474,16 @@ export function Navigation({ children }: NavigationProps) {
       icon: <Squares2X2Icon className="h-6 w-6 md:h-5 md:w-5" />,
       label: "Admin Dashboard"
     },
-    {
-      href: "/admin/users",
-      icon: <UserIcon className="h-6 w-6 md:h-5 md:w-5" />,
-      label: "Utilisateurs"
-    },
-    {
-      href: "/admin/casino",
-      icon: <ChartBarIcon className="h-6 w-6 md:h-5 md:w-5" />,
-      label: "Casino"
-    },
+    // {
+    //   href: "/admin/users",
+    //   icon: <UserIcon className="h-6 w-6 md:h-5 md:w-5" />,
+    //   label: "Utilisateurs"
+    // },
+    // {
+    //   href: "/admin/casino",
+    //   icon: <ChartBarIcon className="h-6 w-6 md:h-5 md:w-5" />,
+    //   label: "Casino"
+    // },
     // Bouton de retour avec mise en évidence visuelle
     {
       href: "/dashboard",
@@ -494,9 +501,9 @@ export function Navigation({ children }: NavigationProps) {
       <DesktopSidebar 
         navItems={navItems} 
         pathname={pathname}
-        userEmail={userEmail || undefined}
         onSignOut={handleSignOut}
         isAdminMode={isAdminPath}
+        userEmail={userEmail || undefined}
       />
       
       <Header 
@@ -524,7 +531,7 @@ export function Navigation({ children }: NavigationProps) {
       {!isAdminPath && <MobileNavBar isAdmin={isAdmin} />}
       
       {/* Afficher une barre de navigation mobile spécifique en mode admin */}
-      {isAdminPath && <MobileAdminNavBar navItems={adminNavItems} pathname={pathname} />}
+      {isAdminPath && <MobileAdminNavBar pathname={pathname} navItems={adminNavItems} />}
       
       <MobileMenu
         navItems={navItems}
@@ -541,41 +548,13 @@ export function Navigation({ children }: NavigationProps) {
 
 // Composant pour la barre de navigation mobile en mode admin
 const MobileAdminNavBar = ({ 
-  navItems, 
-  pathname 
+  pathname,
+  navItems
 }: { 
-  navItems: any[], 
-  pathname: string 
+  pathname: string,
+  navItems: NavItemType[]
 }) => {
-  // Définir les éléments de navigation directement plutôt que de filtrer les navItems
-  const adminMobileItems = [
-    {
-      href: "/admin",
-      label: "Admin Dashboard",
-      icon: <Squares2X2Icon className="h-5 w-5" />,
-      activePattern: /^\/admin$/
-    },
-    {
-      href: "/admin/users",
-      label: "Utilisateurs",
-      icon: <UserIcon className="h-5 w-5" />,
-      activePattern: /^\/admin\/users/
-    },
-    {
-      href: "/admin/casino",
-      label: "Casino",
-      icon: <ChartBarIcon className="h-5 w-5" />,
-      activePattern: /^\/admin\/casino/
-    },
-    {
-      href: "/",
-      label: "Retour au site",
-      icon: <HomeIcon className="h-5 w-5" />,
-      activePattern: /^\/$/
-    }
-  ];
-  
-  const isActive = (item: any) => {
+  const isActive = (item: NavItemType) => {
     if (item.activePattern) {
       return item.activePattern.test(pathname);
     }
@@ -583,43 +562,51 @@ const MobileAdminNavBar = ({
   };
   
   return (
-    <>
-      {/* Barre de navigation principale */}
-      <nav aria-label="Navigation admin mobile" className="fixed bottom-0 left-0 z-50 w-full h-16 border-t bg-background md:hidden">
-        <div className="grid h-full grid-cols-5" role="menubar">
-          {adminMobileItems.map((item) => {
+    <nav 
+      aria-label="Navigation admin" 
+      className="fixed bottom-0 left-0 z-50 w-full border-t border-border bg-background md:hidden"
+    >
+      <div className="mx-auto max-w-md">
+        <ul 
+          className="flex h-16 items-center justify-center" 
+          role="menubar"
+        >
+          {navItems.map((item) => {
             const active = isActive(item);
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                role="menuitem"
-                aria-current={active ? "page" : undefined}
-                aria-label={item.label}
-                className={cn(
-                  "flex flex-col items-center justify-center gap-1",
-                  active && "text-primary"
-                )}
-              >
-                <div className={cn(
-                  active ? "text-primary" : "text-muted-foreground", 
-                  "transition-colors"
-                )}
-                aria-hidden="true"
+              <li key={item.href} className="h-full w-1/2 max-w-40">
+                <Link
+                  href={item.href}
+                  role="menuitem"
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex h-full w-full flex-col items-center justify-center gap-2 px-4 transition-colors",
+                    active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  )}
                 >
-                  {item.icon}
-                </div>
-                <span className={cn(
-                  "text-[10px] transition-colors text-center",
-                  active ? "text-primary font-medium" : "text-muted-foreground"
-                )}>
-                  {item.label}
-                </span>
-              </Link>
+                  <div 
+                    className={cn(
+                      "flex items-center justify-center rounded-md p-1 transition-all",
+                      active ? "bg-primary/10 text-primary scale-110" : "text-muted-foreground"
+                    )}
+                    aria-hidden="true"
+                  >
+                    {item.icon}
+                  </div>
+                  <span 
+                    className={cn(
+                      "text-xs font-medium transition-colors text-center",
+                      active && "text-primary"
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </Link>
+              </li>
             );
           })}
-        </div>
-      </nav>
-    </>
+        </ul>
+      </div>
+    </nav>
   );
-}; 
+};

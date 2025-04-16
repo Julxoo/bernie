@@ -15,7 +15,7 @@ import type { VideoCategory } from "@/types/api";
 
 import { Badge } from "@/components/ui/data-display/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/layout/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/layout/card";
 import { Input } from "@/components/ui/inputs/input";
 import { MobileFilterDrawer } from "@/components/ui/mobile-filter-drawer";
 import { Progress } from "@/components/ui/feedback/progress";
@@ -126,9 +126,6 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
   const [activeTab, setActiveTab] = useState("all");
   const [sortBy, setSortBy] = useState<SortType>("title");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  // Commented out unused state variables
-  // const [isSearching, setIsSearching] = useState(false);
-  const [searchExpanded, setSearchExpanded] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
   
   // Définir les options de tri pour le filtre mobile
@@ -379,8 +376,8 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                     setSortDirection("asc");
                   }}
                   className="w-full"
-                  onFocus={() => setSearchExpanded(true)}
-                  onBlur={() => setSearchExpanded(false)}
+                  onFocus={() => {}}
+                  onBlur={() => {}}
                 />
               </div>
             </div>
@@ -525,7 +522,7 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                             transition={{ duration: 0.2 }}
                           >
                             <Link 
-                              href={`/category/${category.id}`}
+                              href={`/categories/${category.id}`}
                               className="h-full block"
                             >
                               <Card className="h-full cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all duration-200 overflow-hidden group">
@@ -540,9 +537,6 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                                       </Badge>
                                     )}
                                   </div>
-                                  <CardDescription className="line-clamp-2 mt-1">
-                                    {category.description || "Aucune description"}
-                                  </CardDescription>
                                 </CardHeader>
                                 
                                 <CardContent className="pb-2">

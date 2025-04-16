@@ -6,7 +6,7 @@ import { VideoCameraIcon as VideoCameraIconSolid } from '@heroicons/react/24/sol
 import Link from 'next/link';
 import { forwardRef } from 'react';
 
-import { SearchResult } from '@/components/hooks/use-search';
+import { SearchResult } from '@/hooks/use-search';
 import { cn } from '@/lib/utils';
 
 

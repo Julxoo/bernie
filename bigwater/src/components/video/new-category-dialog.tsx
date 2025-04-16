@@ -21,15 +21,22 @@ interface NewCategoryDialogProps {
   buttonSize?: "default" | "sm" | "lg" | "icon" | "xl";
   buttonClassName?: string;
   buttonIcon?: React.ReactNode;
+  onSuccess?: () => void;
 }
 
 export function NewCategoryDialog({ 
   buttonVariant = "default",
   buttonSize,
   buttonClassName,
-  buttonIcon
+  buttonIcon,
+  onSuccess
 }: NewCategoryDialogProps) {
   const [open, setOpen] = useState(false);
+
+  const handleSuccess = () => {
+    setOpen(false);
+    if (onSuccess) onSuccess();
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -50,7 +57,7 @@ export function NewCategoryDialog({
             Créer une nouvelle catégorie pour organiser vos vidéos
           </DialogDescription>
         </DialogHeader>
-        <NewCategoryForm onSuccess={() => setOpen(false)} />
+        <NewCategoryForm onSuccess={handleSuccess} />
       </DialogContent>
     </Dialog>
   );

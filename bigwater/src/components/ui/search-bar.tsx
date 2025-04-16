@@ -1,7 +1,6 @@
 "use client";
 
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
@@ -27,7 +26,6 @@ export function SearchBar({ isMobile = false, onClose, className, onFocus, onBlu
   const [showResults, setShowResults] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
   // Pour éviter les erreurs de rendu côté serveur avec createPortal

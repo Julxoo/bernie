@@ -10,10 +10,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/overlays/sheet"
 import { VideoCategory } from "@/types/api"
 
-// Define a local type for categories with videos
+// Utilise une interface locale compatible avec celle dans categories-client.tsx
 interface CategoryWithVideos extends VideoCategory {
   videos_count?: number;
-  category_videos?: any[]; // Added to match usage in the component
+  category_videos?: { 
+    id: number; 
+    title: string; 
+    identifier: number | null;
+  }[];
+  pending_count?: number;
+  finished_count?: number;
+  ready_to_publish_count?: number;
+  description?: string;
 }
 
 interface SortOption {
@@ -22,7 +30,6 @@ interface SortOption {
 }
 
 interface MobileFilterDrawerProps {
-  // Ces propriétés sont utilisées dans le composant
   categories: CategoryWithVideos[]
   selectedCategories: number[]
   sortOptions: SortOption[]
@@ -30,7 +37,6 @@ interface MobileFilterDrawerProps {
   handleCategoryToggle: (categoryId: number) => void
   setSelectedCategories: (categories: number[]) => void
   setDateSort: (sort: string) => void
-  // Propriétés passées dans d'autres fichiers mais non utilisées ici
   categoryId?: string
   sort?: string
 }

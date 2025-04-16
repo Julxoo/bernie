@@ -12,3 +12,18 @@ export * from './api';
 
 // Note: Les types de database.ts sont déjà exportés via ./api
 // export * from './database';
+
+/**
+ * Interface pour un élément d'activité sur le dashboard
+ */
+export interface ActivityItem {
+  id: number;
+  title: string;
+  timestamp: string;
+  action: string;
+  resourceName: string;
+  status?: string;
+  userName?: string;
+  userId?: string;
+  changeType?: string;
+}

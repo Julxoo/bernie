@@ -8,7 +8,6 @@ import { ResponsiveGrid } from '@/components/layout/responsive-grid';
 import { MobileActions } from '@/components/layout/mobile-actions';
 import { VideoCard } from '@/components/video/video-card';
 import { NewVideoForm } from '@/components/video/new-video-form';
-import { usePathname, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VideoCameraIcon } from '@heroicons/react/24/outline';
 import { Plus, Search } from 'lucide-react';
@@ -32,7 +31,7 @@ const PRESET_FILTERS = [
   { id: 'all', label: 'Toutes', filter: () => true },
   { id: 'a-monter', label: 'À monter', filter: (video: Video) => video.production_status === 'À monter' },
   { id: 'en-cours', label: 'En cours', filter: (video: Video) => video.production_status === 'En cours' },
-  { id: 'pret', label: 'Prêtes', filter: (video: Video) => video.production_status === 'Prêt à publier' }
+  { id: 'termine', label: 'Terminé', filter: (video: Video) => video.production_status === 'Terminé' }
 ];
 
 const SORT_OPTIONS = [
@@ -49,8 +48,8 @@ type Video = {
   status?: string;
   production_status?: string;
   category_id: number;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
   thumbnail_url?: string;
   category?: {
     title: string;
@@ -182,23 +181,15 @@ function NewVideoWithCategoryDialog() {
 }
 
 export default function VideosPage() {
-  const _pathname = usePathname();
-  const _searchParams = useSearchParams();
   
   const [videos, setVideos] = useState<Video[]>([]);
   const [filteredVideos, setFilteredVideos] = useState<Video[]>([]);
-  const [categories, setCategories] = useState<{id: number, title: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [_statusFilter, _setStatusFilter] = useState<string>('all');
-  const [_categoryFilter, _setCategoryFilter] = useState<number | null>(null);
   const [dateSort, setDateSort] = useState<string>('newest');
-  const [_selectedCategories, setSelectedCategories] = useState<number[]>([]);
   const [activePresetFilter, setActivePresetFilter] = useState<string>('all');
-  const [groupByCategory, setGroupByCategory] = useState(false);
-  const [_showFiltersDialog, _setShowFiltersDialog] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -233,6 +224,25 @@ export default function VideosPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
+  // Gestion des paramètres d'URL pour les filtres
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const filterParam = params.get('filter');
+      const statusParam = params.get('status');
+      
+      if (filterParam && PRESET_FILTERS.some(f => f.id === filterParam)) {
+        setActivePresetFilter(filterParam);
+      } else if (statusParam === 'Terminé') {
+        setActivePresetFilter('termine');
+      } else if (statusParam === 'En cours') {
+        setActivePresetFilter('en-cours');
+      } else if (statusParam === 'À monter') {
+        setActivePresetFilter('a-monter');
+      }
+    }
+  }, []);
+
   useEffect(() => {
     async function loadData() {
       setLoading(true);
@@ -250,6 +260,7 @@ export default function VideosPage() {
           const category = categoriesData?.find((cat) => cat.id === video.category_id);
           return {
             ...video,
+            description: '',
             category: category ? {
               title: category.title,
               identifier: category.identifier
@@ -259,7 +270,6 @@ export default function VideosPage() {
         
         setVideos(formattedVideos);
         setFilteredVideos(formattedVideos);
-        setCategories(categoriesData || []);
       } catch (error: Error | unknown) {
         if (process.env.NODE_ENV === 'development') {
           console.error('Erreur lors du chargement des données:', error);
@@ -267,7 +277,6 @@ export default function VideosPage() {
         setError((error as Error)?.message || "Impossible de charger les données.");
         setVideos([]);
         setFilteredVideos([]);
-        setCategories([]);
       } finally {
         setLoading(false);
       }
@@ -281,13 +290,17 @@ export default function VideosPage() {
     
     switch (sortOption) {
       case 'newest':
-        return videosCopy.sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
+        return videosCopy.sort((a, b) => {
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return dateB - dateA;
+        });
       case 'oldest':
-        return videosCopy.sort((a, b) => 
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
+        return videosCopy.sort((a, b) => {
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return dateA - dateB;
+        });
       case 'alpha':
         return videosCopy.sort((a, b) => 
           a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' })
@@ -313,13 +326,17 @@ export default function VideosPage() {
           a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' })
         );
       case 'date_creation':
-        return videosCopy.sort((a, b) => 
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
+        return videosCopy.sort((a, b) => {
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return dateA - dateB;
+        });
       case 'date_modif':
         return videosCopy.sort((a, b) => {
-          const dateA = a.updated_at ? new Date(a.updated_at).getTime() : new Date(a.created_at).getTime();
-          const dateB = b.updated_at ? new Date(b.updated_at).getTime() : new Date(b.created_at).getTime();
+          const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 
+                       (a.created_at ? new Date(a.created_at).getTime() : 0);
+          const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 
+                       (b.created_at ? new Date(b.created_at).getTime() : 0);
           return dateB - dateA;
         });
       case 'statut':
@@ -374,58 +391,11 @@ export default function VideosPage() {
     setDateSort(value);
   };
 
-  const handleCategoryToggle = (categoryId: number) => {
-    setSelectedCategories(prev => {
-      if (prev.includes(categoryId)) {
-        return prev.filter(id => id !== categoryId);
-      } else {
-        return [...prev, categoryId];
-      }
-    });
-  };
-  
-  const applyPresetFilter = (filterId: string) => {
-    if (activePresetFilter === filterId) {
-      setActivePresetFilter('all');
-    } else {
-      setActivePresetFilter(filterId);
-      setSelectedCategories([]);
-    }
-  };
-
   const getFilterCount = (filterId: string) => {
     if (filterId === 'all') return videos.length;
     const filter = PRESET_FILTERS.find(f => f.id === filterId);
     if (!filter) return 0;
     return videos.filter(filter.filter).length;
-  };
-
-  const getVideosGroupedByCategory = () => {
-    if (!groupByCategory) return { ungrouped: filteredVideos };
-    
-    const grouped = filteredVideos.reduce((acc: Record<string, Video[]>, video) => {
-      const categoryId = video.category_id || 'uncategorized';
-      const categoryKey = categoryId.toString();
-      
-      if (!acc[categoryKey]) {
-        acc[categoryKey] = [];
-      }
-      
-      acc[categoryKey].push(video);
-      return acc;
-    }, {});
-    
-    return grouped;
-  };
-  
-  const getCategoryTitle = (categoryId: string) => {
-    if (categoryId === 'uncategorized') return 'Sans catégorie';
-    const category = categories.find(c => c.id.toString() === categoryId);
-    return category ? category.title : `Catégorie ${categoryId}`;
-  };
-
-  const toggleGroupByCategory = () => {
-    setGroupByCategory(!groupByCategory);
   };
 
   return (
@@ -526,7 +496,7 @@ export default function VideosPage() {
           ) : (
             <AnimatePresence mode="wait">
               <motion.div
-                key={groupByCategory ? 'grouped' : 'list'}
+                key={activePresetFilter === 'all' ? 'list' : 'grouped'}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}

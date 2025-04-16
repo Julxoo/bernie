@@ -12,9 +12,12 @@ import {
   Film,
   ClipboardList,
   BellRing,
+  Link2,
+  FileText,
+  User,
 } from "lucide-react";
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { PageContainer, PageContent } from '@/components/layout/page-container';
 import { EnhancedPageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
@@ -23,25 +26,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/layout
 import { ScrollArea } from '@/components/ui/layout/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/overlays/dialog';
 import { Skeleton } from '@/components/ui/feedback/skeleton';
-import { NewCategoryForm } from '@/components/video/new-category-form';
 import { NewVideoForm } from '@/components/video/new-video-form';
-import { calculatePercentageChange, formatNumber, getRelativeTime } from '@/lib/utils';
-import { createClient } from '@/services/supabase/client';
+import { formatNumber, getRelativeTime } from '@/lib/utils';
 import { 
   ActivityItem, 
   VideoStat, 
-  StatCardProps, 
   QuickActionCardProps, 
-  TooltipProps,
-  StatusChartItem,
-  ActivityChartItem,
-  CategoryChartItem
 } from '@/types';
-import { CategoryVideo, VideoCategory } from '@/types/api';
-import { TooltipPayloadItem } from '@/types/common';
+import { CategoryVideo } from '@/types/api';
 import { useRouter } from 'next/navigation';
 import { getCategoryVideos } from '@/services/api/categoryVideos';
 import { getVideoCategories } from '@/services/api/videoCategories';
+import { NewCategoryForm } from '@/components/video/new-category-form';
+import { getProfiles } from '@/services/api/profiles';
+import { getUserActivities } from '@/services/api/userActivity';
 
 const COLORS = {
   'À monter': 'hsl(40, 95%, 45%)',
@@ -52,67 +50,51 @@ const COLORS = {
 const getActivityIcon = (activity: ActivityItem) => {
   if (activity.title.includes('Catégorie')) {
     return <FolderPlus className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
-  } else if (activity.action.includes('créée')) {
+  } else if (activity.changeType === 'Création') {
     return <PlusCircle className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
-  } else if (activity.action.includes('terminée')) {
+  } else if (activity.changeType === 'Changement de statut' && activity.status === 'Terminé') {
     return <CircleCheck className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
-  } else if (activity.status === 'Prêt à publier') {
-    return <FilePieChart className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
-  } else if (activity.status === 'En cours') {
+  } else if (activity.changeType === 'Changement de statut' && activity.status === 'En cours') {
     return <Clock3 className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
+  } else if (activity.changeType === 'Mise à jour de lien') {
+    return <Link2 className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
+  } else if (activity.changeType === 'Mise à jour de description') {
+    return <FileText className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
   } else {
     return <Edit className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
   }
 };
 
-// Composant personnalisé pour le tooltip
-const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
-  if (active && payload && payload.length) {
-    return (
-      <Card className="backdrop-blur-md bg-background/90 border border-border/40 shadow-lg p-2">
-        <p className="text-sm font-semibold mb-1">{label}</p>
-        <div className="space-y-1">
-          {payload.map((entry: TooltipPayloadItem, index: number) => (
-            <div key={`item-${index}`} className="flex items-center text-xs gap-2">
-              <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-              <span className="font-medium">{entry.name}:</span>
-              <span>{entry.value}</span>
-            </div>
-          ))}
+const StatCard = ({ title, value, icon, href }: {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  href?: string;
+}) => {
+  const content = (
+    <div className="bg-background rounded-lg border shadow-sm overflow-hidden hover:shadow-md transition-all cursor-pointer">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <h3 className="text-sm font-medium">{title}</h3>
+        <div className="rounded-md p-2 bg-primary/10 text-primary">
+          {icon}
         </div>
-      </Card>
-    );
+      </div>
+      <div className="px-4 pb-4">
+        <div className="text-2xl font-bold">{value}</div>
+      </div>
+    </div>
+  );
+
+  if (href) {
+    return <Link href={href} className="block">{content}</Link>;
   }
-  return null;
+
+  return content;
 };
 
-// Composant pour les cartes de statistiques
-const StatCard = ({ title, value, icon, percentage, lastUpdated }: StatCardProps) => (
-  <div className="bg-background rounded-lg border shadow-sm overflow-hidden">
-    <div className="flex items-center justify-between px-4 pt-4 pb-2">
-      <h3 className="text-sm font-medium">{title}</h3>
-      <div className="rounded-md p-2 bg-primary/10 text-primary">
-        {icon}
-      </div>
-    </div>
-    <div className="px-4 pb-4">
-      <div className="text-2xl font-bold">{value}</div>
-      <div className="flex items-center mt-1 text-xs text-muted-foreground">
-        {percentage && (
-          <Badge className="mr-2 px-1 py-0 bg-red-600 text-white rounded-sm font-medium text-xs">
-            {percentage}
-          </Badge>
-        )}
-        {lastUpdated}
-      </div>
-    </div>
-  </div>
-);
-
-// Composant pour les cartes d'actions rapides
 const QuickActionCard = ({ icon, title, onClick, href }: QuickActionCardProps) => {
   const content = (
-    <div className="rounded-lg border bg-background shadow-sm p-4 flex flex-col items-center justify-center hover:shadow-md transition-all h-full">
+    <div className="rounded-lg border bg-background shadow-sm p-4 flex flex-col items-center justify-center hover:shadow-md transition-all h-full cursor-pointer">
       <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-3">
         {icon}
       </div>
@@ -132,288 +114,320 @@ const QuickActionCard = ({ icon, title, onClick, href }: QuickActionCardProps) =
 };
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<VideoStat[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusData, setStatusData] = useState<StatusChartItem[]>([]);
-  const [activityData, setActivityData] = useState<ActivityChartItem[]>([]);
-  const [categoryData, setCategoryData] = useState<CategoryChartItem[]>([]);
+  const [stats, setStats] = useState<VideoStat[]>([]);
   const [newVideoDialogOpen, setNewVideoDialogOpen] = useState(false);
   const [newCategoryDialogOpen, setNewCategoryDialogOpen] = useState(false);
+  const [shouldRefresh, setShouldRefresh] = useState(false);
   const router = useRouter();
+  const isInitialRender = useRef(true);
 
-  useEffect(() => {
-    // Simuler des données historiques pour les comparaisons
-    const historicalData = {
-      totalVideos: 115, // Total il y a un mois
-      statusCounts: {
-        'À monter': 35, // Il y a une semaine
-        'En cours': 15,
-        'Prêt à publier': 10,
-        'Terminé': 55 // Il y a un mois
-      },
-      categories: 13 // Il y a un trimestre
-    };
+  // Fonction pour extraire en toute sécurité les détails JSON
+  const safeParseJSON = (jsonString: string | object | undefined) => {
+    if (jsonString === undefined) {
+      return {};
+    }
+    
+    if (typeof jsonString !== 'string') {
+      return jsonString || {};
+    }
+    
+    try {
+      const trimmedJson = jsonString.trim();
+      if (!trimmedJson || !trimmedJson.startsWith('{')) {
+        return {};
+      }
+      return JSON.parse(trimmedJson);
+    } catch (e) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur lors du parsing JSON:', e, jsonString);
+      }
+      return {};
+    }
+  };
 
-    async function fetchDashboardData() {
-      setLoading(true);
-      setError(null);
+  const fetchDashboardData = useCallback(async function() {
+    setLoading(true);
+    setError(null);
 
-      try {
-        // Récupérer les vidéos de catégories via l'API
-        const videos = await getCategoryVideos();
-        
-        // Récupérer les catégories via l'API
-        const categories = await getVideoCategories();
-        
-        // Compter le nombre total de vidéos
-        const totalVideos = videos?.length || 0;
-
-        // Compter les statuts des vidéos
-        const statusMap: Record<string, number> = { 
-          'À monter': 0, 
-          'En cours': 0, 
-          'Terminé': 0 
-        };
-
-        // Si videos existe et contient des données
-        if (videos && videos.length > 0) {
-          videos.forEach((video: CategoryVideo) => {
-            if (video.production_status && Object.prototype.hasOwnProperty.call(statusMap, video.production_status)) {
-              statusMap[video.production_status] += 1;
-            }
-          });
-        } else {
-          // Valeurs par défaut si pas de données
-          statusMap['À monter'] = Math.floor((totalVideos || 0) * 0.6) || 0;
-          statusMap['En cours'] = Math.floor((totalVideos || 0) * 0.3) || 0;
-          statusMap['Terminé'] = Math.floor((totalVideos || 0) * 0.1) || 0;
-        }
-
-        // Récupérer le nombre de catégories
-        const categoriesCount = categories?.length || 0;
-
-        // Préparer les données de graphique pour les statuts
-        const chartStatusData: StatusChartItem[] = [
-          { name: 'À monter', value: statusMap['À monter'], color: COLORS['À monter'] },
-          { name: 'En cours', value: statusMap['En cours'], color: COLORS['En cours'] },
-          { name: 'Terminé', value: statusMap['Terminé'], color: COLORS['Terminé'] }
-        ];
-        
-        setStatusData(chartStatusData);
-
-        // Préparer les données pour le graphique des activités (7 derniers jours)
-        const dateMap = new Map<string, number>();
-        const today = new Date();
-        
-        for (let i = 6; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(date.getDate() - i);
-          const dateString = date.toLocaleDateString('fr-FR', { weekday: 'short' });
-          dateMap.set(dateString, 0);
-        }
-        
-        videos?.forEach((video: CategoryVideo) => {
-          if (video.updated_at) {
-            const updateDate = new Date(video.updated_at);
-            const now = new Date();
-            const diffDays = Math.floor((now.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
-            
-            if (diffDays < 7) {
-              const dateString = updateDate.toLocaleDateString('fr-FR', { weekday: 'short' });
-              dateMap.set(dateString, (dateMap.get(dateString) || 0) + 1);
-            }
+    try {
+      const videos = await getCategoryVideos();
+      const categories = await getVideoCategories();
+      const userActivities = await getUserActivities();
+      const profiles = await getProfiles();
+      
+      const totalVideos = videos?.length || 0;
+      const statusMap: Record<string, number> = { 
+        'À monter': 0, 
+        'En cours': 0, 
+        'Terminé': 0 
+      };
+      
+      if (videos && videos.length > 0) {
+        videos.forEach((video: CategoryVideo) => {
+          if (video.production_status && Object.prototype.hasOwnProperty.call(statusMap, video.production_status)) {
+            statusMap[video.production_status] += 1;
           }
         });
-        
-        const activityChartData: ActivityChartItem[] = Array.from(dateMap.entries()).map(([date, count]) => ({ 
-          date, 
-          'Modifications': count 
-        }));
-        
-        setActivityData(activityChartData);
-
-        // Préparer les données pour le graphique des catégories
-        if (categories && categories.length > 0) {
-          // Créer un tableau pour compter les vidéos par catégorie
-          const videoCounts: Record<number, number> = {};
-          
-          // Initialiser les compteurs à 0 pour chaque catégorie
-          categories.forEach((category: VideoCategory) => {
-            if (category.id) {
-              videoCounts[category.id] = 0;
-            }
-          });
-          
-          // Compter les vidéos par catégorie
-          if (videos && videos.length > 0) {
-            videos.forEach((video: CategoryVideo) => {
-              const categoryId = video.category_id;
-              if (categoryId && typeof videoCounts[categoryId] === 'number') {
-                videoCounts[categoryId] += 1;
-              }
-            });
-          }
-          
-          // Transformer en format utilisable par le graphique
-          const categoryStats: CategoryChartItem[] = categories
-            .filter((category: VideoCategory) => category.id !== undefined)
-            .map((category: VideoCategory) => ({
-              name: category.title,
-              value: videoCounts[category.id] || 0
-            }))
-            .sort((a: CategoryChartItem, b: CategoryChartItem) => b.value - a.value)
-            .slice(0, 5); // Top 5 catégories
-          
-          setCategoryData(categoryStats);
-        }
-
-        // Calculer les pourcentages de changement à partir des données historiques simulées
-        const totalVideosChange = calculatePercentageChange(
-          totalVideos || 0,
-          historicalData.totalVideos
-        );
-        
-        const terminatedChange = calculatePercentageChange(
-          statusMap['Terminé'],
-          historicalData.statusCounts['Terminé']
-        );
-        
-        const toEditChange = calculatePercentageChange(
-          statusMap['À monter'],
-          historicalData.statusCounts['À monter']
-        );
-        
-        const categoriesChange = calculatePercentageChange(
-          categoriesCount,
-          historicalData.categories
-        );
-        
-        // Mettre à jour les statistiques avec des couleurs
-        const updatedStats: VideoStat[] = [
-          { 
-            title: 'Total Vidéos', 
-            value: formatNumber(totalVideos || 0), 
-            change: totalVideosChange, 
-            icon: <Film className="h-5 w-5" />,
-            description: 'Depuis le mois dernier',
-            color: 'hsl(210, 95%, 60%)'
-          },
-          { 
-            title: 'À monter', 
-            value: formatNumber(statusMap['À monter']), 
-            change: toEditChange, 
-            icon: <ClipboardList className="h-5 w-5" />,
-            description: 'Depuis la semaine dernière',
-            color: COLORS['À monter']
-          },
-          { 
-            title: 'Terminées', 
-            value: formatNumber(statusMap['Terminé']), 
-            change: terminatedChange, 
-            icon: <CircleCheck className="h-5 w-5" />,
-            description: 'Depuis le mois dernier',
-            color: COLORS['Terminé']
-          },
-          { 
-            title: 'Catégories', 
-            value: formatNumber(categoriesCount), 
-            change: categoriesChange, 
-            icon: <FolderClosed className="h-5 w-5" />,
-            description: 'Depuis le trimestre',
-            color: 'hsl(40, 95%, 65%)'
-          },
-        ];
-        
-        setStats(updatedStats);
-
-        // Si videos existe et contient des données
-        if (videos && videos.length > 0) {
-          // Prendre les 5 vidéos les plus récentes
-          const recentVideos = videos.slice(0, 6);
-          
-          const formattedActivities = recentVideos.map((video: CategoryVideo, index: number) => {
-            let action = "modifiée";
-            let color = "text-gray-500";
-            
-            if (video.production_status === 'Terminé') {
-              action = "marquée comme terminée";
-              color = "text-green-500";
-            } else if (video.production_status === 'En cours') {
-              action = "déplacée vers 'En cours'";
-              color = "text-blue-500";
-            }
-            
-            // Comparer les dates de création et de mise à jour
-            const createdDate = new Date(video.created_at || new Date().toISOString());
-            const updatedDate = new Date(video.updated_at || new Date().toISOString());
-            const hoursSinceCreation = (updatedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
-            
-            // Si la mise à jour est récente après la création, c'est une nouvelle vidéo
-            if (hoursSinceCreation < 1) {
-              action = "créée";
-            }
-            
-            return {
-              id: video.id,
-              title: 'Vidéo mise à jour',
-              timestamp: getRelativeTime(updatedDate),
-              action: action,
-              resourceName: video.title,
-              status: video.production_status
-            };
-          });
-          
-          setActivities(formattedActivities);
-        } else {
-          // Aucune activité si pas de vidéos disponibles
-          setActivities([]);
-        }
-      } catch (err) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur lors du chargement des données:', err);
-        }
-        setError('Impossible de charger les données.');
-        
-        // Définir des statistiques par défaut en cas d'erreur
-        setStats([
-          { 
-            title: 'Total Vidéos', 
-            value: '0', 
-            icon: <Film className="h-5 w-5" />,
-            description: 'Aucune donnée disponible',
-            color: 'hsl(210, 95%, 60%)'
-          },
-          { 
-            title: 'À monter', 
-            value: '0', 
-            icon: <ClipboardList className="h-5 w-5" />,
-            description: 'Aucune donnée disponible',
-            color: COLORS['À monter']
-          },
-          { 
-            title: 'Terminées', 
-            value: '0', 
-            icon: <CircleCheck className="h-5 w-5" />,
-            description: 'Aucune donnée disponible',
-            color: COLORS['Terminé']
-          },
-          { 
-            title: 'Catégories', 
-            value: '0', 
-            icon: <FolderClosed className="h-5 w-5" />,
-            description: 'Aucune donnée disponible',
-            color: 'hsl(40, 95%, 65%)'
-          }
-        ]);
-      } finally {
-        setLoading(false);
+      } else {
+        statusMap['À monter'] = Math.floor((totalVideos || 0) * 0.6) || 0;
+        statusMap['En cours'] = Math.floor((totalVideos || 0) * 0.3) || 0;
+        statusMap['Terminé'] = Math.floor((totalVideos || 0) * 0.1) || 0;
       }
-    }
 
-    fetchDashboardData();
+      const categoriesCount = categories?.length || 0;
+      
+      if (videos && videos.length > 0 && userActivities && userActivities.length > 0) {
+        // Trier les vidéos par date de mise à jour (la plus récente d'abord)
+        const sortedVideos = [...videos].sort((a, b) => {
+          const dateA = new Date(a.updated_at || '').getTime();
+          const dateB = new Date(b.updated_at || '').getTime();
+          return dateB - dateA;
+        });
+        
+        // Récupérer seulement les activités liées aux vidéos et catégories
+        const videoRelatedActivities = userActivities.filter(activity => 
+          activity.action_type.includes('video') || 
+          activity.action_type.includes('category')
+        );
+        
+        // Créer une map pour associer les utilisateurs à leurs noms
+        const userMap = new Map();
+        if (profiles && profiles.length > 0) {
+          profiles.forEach(profile => {
+            userMap.set(profile.id, profile.name || profile.email || 'Utilisateur');
+          });
+        }
+        
+        // Fusionner les informations des vidéos avec les activités des utilisateurs
+        const enrichedActivities = [];
+        
+        // D'abord, traiter les activités utilisateur récentes (maximum 10)
+        const recentActivities = videoRelatedActivities.slice(0, 10);
+        
+        for (const activity of recentActivities) {
+          try {
+            const details = safeParseJSON(activity.details);
+            const relatedVideo = videos.find(v => v.id === details?.video_id || v.id === details?.entity_id);
+            
+            if (relatedVideo) {
+              let actionDescription = '';
+              let changeType = '';
+              
+              switch (activity.action_type) {
+                case 'video_created':
+                  actionDescription = 'créée';
+                  changeType = 'Création';
+                  break;
+                case 'video_updated':
+                  actionDescription = 'modifiée';
+                  changeType = 'Modification';
+                  break;  
+                case 'video_status_changed':
+                  actionDescription = `déplacée vers '${relatedVideo.production_status}'`;
+                  changeType = 'Changement de statut';
+                  break;
+                case 'video_link_updated':
+                  actionDescription = 'liens mis à jour';
+                  changeType = 'Mise à jour de lien';
+                  break;
+                case 'video_description_updated':
+                  actionDescription = 'description modifiée';
+                  changeType = 'Mise à jour de description';
+                  break;
+                default:
+                  actionDescription = 'modifiée';
+                  changeType = 'Modification';
+              }
+              
+              const userName = userMap.get(activity.user_id) || 'Utilisateur';
+              
+              enrichedActivities.push({
+                id: relatedVideo.id,
+                title: changeType,
+                timestamp: getRelativeTime(new Date(activity.created_at)),
+                action: actionDescription,
+                resourceName: relatedVideo.title,
+                status: relatedVideo.production_status,
+                userName: userName,
+                userId: activity.user_id,
+                changeType: changeType
+              });
+            }
+          } catch (err) {
+            if (process.env.NODE_ENV === 'development') {
+              console.error('Erreur lors du traitement de l\'activité:', err);
+            }
+          }
+        }
+        
+        // Si nous n'avons pas assez d'activités enrichies, compléter avec les vidéos récemment mises à jour
+        if (enrichedActivities.length < 6) {
+          const recentVideos = sortedVideos.slice(0, 6 - enrichedActivities.length);
+          
+          for (const video of recentVideos) {
+            // Vérifier si cette vidéo n'est pas déjà dans enrichedActivities
+            if (!enrichedActivities.some(a => a.id === video.id)) {
+              let action = "modifiée";
+              let changeType = "Modification";
+              
+              if (video.production_status === 'Terminé') {
+                action = "marquée comme terminée";
+                changeType = "Changement de statut";
+              } else if (video.production_status === 'En cours') {
+                action = "déplacée vers 'En cours'";
+                changeType = "Changement de statut";
+              }
+              
+              const createdDate = new Date(video.created_at || new Date().toISOString());
+              const updatedDate = new Date(video.updated_at || new Date().toISOString());
+              const hoursSinceCreation = (updatedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+              
+              if (hoursSinceCreation < 1) {
+                action = "créée";
+                changeType = "Création";
+              }
+              
+              // Essayer de trouver l'utilisateur qui a modifié cette vidéo
+              const videoActivity = userActivities.find(a => {
+                try {
+                  const details = safeParseJSON(a.details);
+                  return details?.video_id === video.id || details?.entity_id === video.id;
+                } catch {
+                  return false;
+                }
+              });
+              
+              const userId = videoActivity?.user_id || '';
+              const userName = userId ? (userMap.get(userId) || 'Utilisateur') : 'Système';
+              
+              enrichedActivities.push({
+                id: video.id,
+                title: changeType,
+                timestamp: getRelativeTime(updatedDate),
+                action: action,
+                resourceName: video.title,
+                status: video.production_status,
+                userName: userName,
+                userId: userId,
+                changeType: changeType
+              });
+            }
+          }
+        }
+        
+        // Trier les activités enrichies par date
+        enrichedActivities.sort((a, b) => {
+          const dateA = new Date(a.timestamp).getTime();
+          const dateB = new Date(b.timestamp).getTime();
+          return dateB - dateA;
+        });
+        
+        setActivities(enrichedActivities.slice(0, 6));
+      } else {
+        setActivities([]);
+      }
+
+      const updatedStats: VideoStat[] = [
+        { 
+          title: 'Total Vidéos', 
+          value: formatNumber(totalVideos || 0),
+          icon: <Film className="h-5 w-5" />,
+          color: 'hsl(210, 95%, 60%)',
+          href: '/videos'
+        },
+        { 
+          title: 'À monter', 
+          value: formatNumber(statusMap['À monter']),
+          icon: <ClipboardList className="h-5 w-5" />,
+          color: COLORS['À monter'],
+          href: '/videos?filter=a-monter'
+        },
+        { 
+          title: 'Terminées', 
+          value: formatNumber(statusMap['Terminé']),
+          icon: <CircleCheck className="h-5 w-5" />,
+          color: COLORS['Terminé'],
+          href: '/videos?filter=termine'
+        },
+        { 
+          title: 'Catégories', 
+          value: formatNumber(categoriesCount),
+          icon: <FolderClosed className="h-5 w-5" />,
+          color: 'hsl(40, 95%, 65%)',
+          href: '/categories'
+        },
+      ];
+      
+      setStats(updatedStats);
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur lors du chargement des données:', err);
+      }
+      setError('Impossible de charger les données.');
+      
+      setStats([
+        { 
+          title: 'Total Vidéos', 
+          value: '0', 
+          icon: <Film className="h-5 w-5" />,
+          color: 'hsl(210, 95%, 60%)',
+          href: '/videos'
+        },
+        { 
+          title: 'À monter', 
+          value: '0', 
+          icon: <ClipboardList className="h-5 w-5" />,
+          color: COLORS['À monter'],
+          href: '/videos?filter=a-monter'
+        },
+        { 
+          title: 'Terminées', 
+          value: '0', 
+          icon: <CircleCheck className="h-5 w-5" />,
+          color: COLORS['Terminé'],
+          href: '/videos?filter=termine'
+        },
+        { 
+          title: 'Catégories', 
+          value: '0', 
+          icon: <FolderClosed className="h-5 w-5" />,
+          color: 'hsl(40, 95%, 65%)',
+          href: '/categories'
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Effet pour détecter quand les modales sont fermées
+  useEffect(() => {
+    // Ignorer le premier rendu
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      return;
+    }
+    
+    // Si une modale a été fermée, marquer pour rafraîchissement
+    if (!newVideoDialogOpen && !newCategoryDialogOpen) {
+      setShouldRefresh(true);
+    }
+  }, [newVideoDialogOpen, newCategoryDialogOpen]);
+  
+  // Effet pour rafraîchir les données quand nécessaire
+  useEffect(() => {
+    if (shouldRefresh && !loading) {
+      setShouldRefresh(false);
+      fetchDashboardData();
+    }
+  }, [shouldRefresh, loading, fetchDashboardData]);
 
   if (loading) {
     return (
@@ -542,45 +556,23 @@ export default function DashboardPage() {
             />
             <QuickActionCard
               icon={<FilePieChart className="h-5 w-5" />}
-              title="Vidéos prêtes à publier"
-              href="/videos?status=Prêt à publier"
+              title="Vidéos en cours"
+              href="/videos?filter=en-cours"
             />
           </div>
           
           {/* Statistiques */}
           <Section title="Statistiques" className="mb-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard 
-                title="Total Vidéos" 
-                value={22} 
-                icon={<Film className="h-4 w-4" />}
-                percentage="-81%" 
-                lastUpdated="Depuis le mois dernier"
-              />
-              
-              <StatCard 
-                title="À monter" 
-                value={8} 
-                icon={<ClipboardList className="h-4 w-4" />}
-                percentage="-77%" 
-                lastUpdated="Depuis la semaine dernière"
-              />
-              
-              <StatCard 
-                title="Terminées" 
-                value={9} 
-                icon={<CircleCheck className="h-4 w-4" />}
-                percentage="-84%" 
-                lastUpdated="Depuis le mois dernier"
-              />
-              
-              <StatCard 
-                title="Catégories" 
-                value={11} 
-                icon={<FolderClosed className="h-4 w-4" />}
-                percentage="-15%" 
-                lastUpdated="Depuis le trimestre"
-              />
+              {stats.map((stat, index) => (
+                <StatCard 
+                  key={index}
+                  title={stat.title} 
+                  value={stat.value} 
+                  icon={stat.icon}
+                  href={stat.href}
+                />
+              ))}
             </div>
           </Section>
           
@@ -597,33 +589,45 @@ export default function DashboardPage() {
                     <div className="divide-y">
                       {activities && activities.length > 0 ? (
                         activities.map((activity, i) => (
-                          <div key={i} className="p-4 flex items-start space-x-3 hover:bg-accent/30 transition-colors">
-                            <div className="shrink-0 rounded-full bg-primary/10 p-2 h-10 w-10 flex items-center justify-center">
-                              {getActivityIcon(activity)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between flex-wrap">
-                                <div className="font-medium text-sm md:text-base truncate mr-2">{activity.title}</div>
-                                <div className="text-xs md:text-sm text-muted-foreground">{activity.timestamp}</div>
+                          <Link 
+                            href={`/videos/${activity.id}`} 
+                            key={i} 
+                            className="block"
+                          >
+                            <div className="p-4 flex items-start space-x-3 hover:bg-accent/30 transition-colors cursor-pointer">
+                              <div className="shrink-0 rounded-full bg-primary/10 p-2 h-10 w-10 flex items-center justify-center">
+                                {getActivityIcon(activity)}
                               </div>
-                              <p className="text-xs md:text-sm text-muted-foreground line-clamp-1">
-                                La vidéo <span className="font-medium">{activity.resourceName}</span> a été {activity.action}
-                              </p>
-                              {activity.status && (
-                                <Badge 
-                                  variant="outline" 
-                                  className="mt-1"
-                                  style={{ 
-                                    backgroundColor: `${COLORS[activity.status as keyof typeof COLORS]}10`,
-                                    color: COLORS[activity.status as keyof typeof COLORS],
-                                    borderColor: `${COLORS[activity.status as keyof typeof COLORS]}30`
-                                  }}
-                                >
-                                  {activity.status}
-                                </Badge>
-                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between flex-wrap">
+                                  <div className="font-medium text-sm md:text-base truncate mr-2">{activity.title}</div>
+                                  <div className="text-xs md:text-sm text-muted-foreground">{activity.timestamp}</div>
+                                </div>
+                                <p className="text-xs md:text-sm text-muted-foreground line-clamp-1">
+                                  La vidéo <span className="font-medium">{activity.resourceName}</span> a été {activity.action}
+                                </p>
+                                <div className="flex items-center justify-between mt-1">
+                                  {activity.status && (
+                                    <Badge 
+                                      variant="outline" 
+                                      className="mr-2"
+                                      style={{ 
+                                        backgroundColor: `${COLORS[activity.status as keyof typeof COLORS]}10`,
+                                        color: COLORS[activity.status as keyof typeof COLORS],
+                                        borderColor: `${COLORS[activity.status as keyof typeof COLORS]}30`
+                                      }}
+                                    >
+                                      {activity.status}
+                                    </Badge>
+                                  )}
+                                  <div className="text-xs text-muted-foreground flex items-center">
+                                    <User className="h-3 w-3 mr-1" />
+                                    {activity.userName}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                          </div>
+                          </Link>
                         ))
                       ) : (
                         <div className="text-center py-16">
@@ -644,7 +648,6 @@ export default function DashboardPage() {
         open={newVideoDialogOpen} 
         onOpenChange={(open) => {
           setNewVideoDialogOpen(open);
-          // Si on ferme le dialogue, s'assurer que les données sont rafraîchies
           if (!open) {
             router.refresh();
           }
@@ -667,7 +670,6 @@ export default function DashboardPage() {
         open={newCategoryDialogOpen} 
         onOpenChange={(open) => {
           setNewCategoryDialogOpen(open);
-          // Si on ferme le dialogue, s'assurer que les données sont rafraîchies
           if (!open) {
             router.refresh();
           }
@@ -685,4 +687,4 @@ export default function DashboardPage() {
       </Dialog>
     </PageContainer>
   );
-} 
+}

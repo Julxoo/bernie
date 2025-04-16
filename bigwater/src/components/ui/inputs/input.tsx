@@ -8,7 +8,8 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, error, "aria-describedby": ariaDescribedby, ...props }, ref) => {
-    const inputId = props.id || React.useId();
+    const generatedId = React.useId();
+    const inputId = props.id || generatedId;
     const errorId = error ? `${inputId}-error` : undefined;
     const describedBy = error 
       ? `${ariaDescribedby ? `${ariaDescribedby} ` : ''}${errorId}`

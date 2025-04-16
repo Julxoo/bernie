@@ -6,10 +6,9 @@ import { ReactNode } from 'react';
 export interface VideoStat {
   title: string;
   value: string;
-  change?: string;
   icon: ReactNode;
-  description: string;
   color: string;
+  href?: string;
 }
 
 /**
@@ -31,7 +30,7 @@ export interface StatCardProps {
   title: string; 
   value: number | string; 
   icon: ReactNode;
-  percentage: string | null;
+  percentage: string | undefined | null;
   lastUpdated: string;
 }
 
