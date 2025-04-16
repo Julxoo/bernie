@@ -1,4 +1,4 @@
-// ./app/(dashboard)/layout.tsx
+// ./app/dashboard/layout.tsx
 import { Navigation } from '@/components/ui/navigation';
 import { Toaster } from '@/components/ui/feedback/sonner';
 
