@@ -3,7 +3,7 @@
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/overlays/tooltip";
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   return (

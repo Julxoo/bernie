@@ -3,9 +3,9 @@
 import { ChevronRightIcon } from "@heroicons/react/24/solid";
 import React from 'react';
 
-import { Badge } from "@/components/ui/badge";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/data-display/badge";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/navigation/breadcrumb";
+import { Separator } from "@/components/ui/layout/separator";
 import { cn } from '@/lib/utils';
 
 interface PageContainerProps {

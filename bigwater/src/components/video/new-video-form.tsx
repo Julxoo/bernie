@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card } from "@/components/ui/layout/card";
 import {
   Form,
   FormControl,
@@ -17,17 +17,17 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/inputs/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/inputs/select";
 import { videoService } from "@/lib/services";
 import { VideoStatus } from "@/types/api";
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/services/supabase/client";
 
 const videoFormSchema = z.object({
   title: z.string().min(1, "Le titre est requis"),
@@ -41,10 +41,16 @@ interface NewVideoFormProps {
   onSuccess?: () => void;
 }
 
+interface Category {
+  id: number;
+  title: string;
+  identifier: number;
+}
+
 export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [categories, setCategories] = useState<{ id: number; title: string; identifier: number }[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [nextIdentifier, setNextIdentifier] = useState<number | null>(null);
   const [previewIdentifier, setPreviewIdentifier] = useState<string>("--");
   const [isLoading, setIsLoading] = useState(true);
@@ -80,7 +86,7 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
           console.log("Catégories chargées (données complètes):", data);
           
           // Vérifier la structure des données et les identifiants
-          data.forEach((cat, index) => {
+          data.forEach((cat: Category, index: number) => {
             console.log(`Catégorie ${index + 1}:`, {
               id: cat.id,
               titre: cat.title,

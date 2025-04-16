@@ -1,11 +1,26 @@
 "use server";
 
+import { createClient } from "@/services/supabase/server";
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/utils/supabase/server";
-import { encodedRedirect } from "@/utils/utils";
-import { SignInFormData, ResetPasswordFormData, UpdateProfileFormData, UpdatePasswordFormData } from "@/types/auth";
-import { RedirectOptions } from "@/types/common";
+export const encodedRedirect = async (
+  type: "error" | "success",
+  path: string,
+  message: string,
+  params?: Record<string, string>
+) => {
+  const searchParams = new URLSearchParams();
+  searchParams.set("type", type);
+  searchParams.set("message", message);
+  
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      searchParams.set(key, value);
+    });
+  }
+  
+  return redirect(`${path}?${searchParams.toString()}`);
+};
 
 export const signInAction = async (formData: FormData) => {
   const email = formData.get("email") as string;

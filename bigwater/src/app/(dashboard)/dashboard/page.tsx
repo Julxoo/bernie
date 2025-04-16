@@ -18,17 +18,15 @@ import { useEffect, useState } from 'react';
 import { PageContainer, PageContent } from '@/components/layout/page-container';
 import { EnhancedPageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-
-
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
-import { NewCategoryForm } from '@/components/video/NewCategoryForm';
-import { NewVideoForm } from '@/components/video/NewVideoForm';
+import { Badge } from '@/components/ui/data-display/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/layout/card';
+import { ScrollArea } from '@/components/ui/layout/scroll-area';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/overlays/dialog';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
+import { NewCategoryForm } from '@/components/video/new-category-form';
+import { NewVideoForm } from '@/components/video/new-video-form';
 import { calculatePercentageChange, formatNumber, getRelativeTime } from '@/lib/utils';
-import { createClient } from '@/utils/supabase/client';
+import { createClient } from '@/services/supabase/client';
 import { 
   ActivityItem, 
   VideoStat, 
@@ -39,9 +37,11 @@ import {
   ActivityChartItem,
   CategoryChartItem
 } from '@/types';
-import { CategoryVideo, VideoCategory, ProductionStatus } from '@/types/api';
+import { CategoryVideo, VideoCategory } from '@/types/api';
 import { TooltipPayloadItem } from '@/types/common';
 import { useRouter } from 'next/navigation';
+import { getCategoryVideos } from '@/services/api/categoryVideos';
+import { getVideoCategories } from '@/services/api/videoCategories';
 
 const COLORS = {
   'À monter': 'hsl(40, 95%, 45%)',
@@ -157,32 +157,18 @@ export default function DashboardPage() {
     };
 
     async function fetchDashboardData() {
-      const supabase = createClient();
       setLoading(true);
       setError(null);
 
       try {
-        // 1. Récupérer le nombre total de vidéos
-        const { count: totalVideos, error: totalError } = await supabase
-          .from('category_videos')
-          .select('*', { count: 'exact', head: true });
-
-        if (totalError) throw totalError;
-
-        // 2. Récupérer les vidéos avec leurs statuts depuis category_videos
-        const { data: videos, error: videosError } = await supabase
-          .from('category_videos')
-          .select('id, title, category_id, production_status, updated_at, created_at')
-          .order('updated_at', { ascending: false });
-
-        if (videosError) throw videosError;
-
-        // 3. Récupérer les catégories
-        const { data: categories, error: categoriesError } = await supabase
-          .from('video_categories')
-          .select('id, title');
-          
-        if (categoriesError) throw categoriesError;
+        // Récupérer les vidéos de catégories via l'API
+        const videos = await getCategoryVideos();
+        
+        // Récupérer les catégories via l'API
+        const categories = await getVideoCategories();
+        
+        // Compter le nombre total de vidéos
+        const totalVideos = videos?.length || 0;
 
         // Compter les statuts des vidéos
         const statusMap: Record<string, number> = { 
@@ -433,23 +419,72 @@ export default function DashboardPage() {
     return (
       <PageContainer>
         <EnhancedPageHeader 
-          title="Accueil" 
+          usePathConfig={true}
           description="Chargement des données..."
         />
         <PageContent>
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Skeleton pour les actions rapides */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 my-6">
               {[1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-32 w-full rounded-md" />
+                <div key={i} className="rounded-lg border bg-background shadow-sm p-4">
+                  <div className="flex flex-col items-center justify-center">
+                    <Skeleton className="h-10 w-10 rounded-full mb-3" />
+                    <Skeleton className="h-5 w-24" />
+                  </div>
+                </div>
               ))}
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Skeleton className="h-[300px] w-full rounded-md" />
-              <Skeleton className="h-[300px] w-full rounded-md" />
+            {/* Skeleton pour les statistiques */}
+            <div>
+              <Skeleton className="h-8 w-32 mb-4" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="bg-background rounded-lg border shadow-sm overflow-hidden p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <Skeleton className="h-5 w-24" />
+                      <Skeleton className="h-8 w-8 rounded-md" />
+                    </div>
+                    <Skeleton className="h-8 w-16 mb-2" />
+                    <div className="flex items-center mt-1">
+                      <Skeleton className="h-4 w-12 mr-2 rounded-sm" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             
-            <Skeleton className="h-[400px] w-full rounded-md" />
+            {/* Skeleton pour les activités récentes */}
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <Skeleton className="h-8 w-40 mb-1" />
+                  <Skeleton className="h-5 w-64" />
+                </div>
+              </div>
+              
+              <div className="border rounded-lg shadow-sm">
+                <div className="h-[350px] overflow-hidden">
+                  <div className="divide-y">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="p-4 flex items-start space-x-3">
+                        <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center justify-between flex-wrap">
+                            <Skeleton className="h-5 w-1/3" />
+                            <Skeleton className="h-4 w-16" />
+                          </div>
+                          <Skeleton className="h-4 w-full" />
+                          <Skeleton className="h-5 w-20 rounded-full" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </PageContent>
       </PageContainer>

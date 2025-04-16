@@ -4,10 +4,10 @@ import { FunnelIcon } from "@heroicons/react/24/outline"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Checkbox } from "@/components/ui/inputs/checkbox"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/inputs/select"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/overlays/sheet"
 import { VideoCategory } from "@/types/api"
 
 // Define a local type for categories with videos

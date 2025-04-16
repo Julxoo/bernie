@@ -1,35 +1,33 @@
 'use client';
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/overlays/dialog';
 import { PageContainer, PageContent } from '@/components/layout/page-container';
 import { EnhancedPageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ResponsiveGrid } from '@/components/layout/responsive-grid';
 import { MobileActions } from '@/components/layout/mobile-actions';
-import { VideoCard } from '@/components/video/VideoCard';
-import { NewVideoForm } from '@/components/video/NewVideoForm';
+import { VideoCard } from '@/components/video/video-card';
+import { NewVideoForm } from '@/components/video/new-video-form';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VideoCameraIcon } from '@heroicons/react/24/outline';
 import { Plus, Search } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/data-display/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/ui/inputs/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import { createClient } from '@/utils/supabase/client';
+} from '@/components/ui/inputs/select';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
+import { getCategoryVideos } from '@/services/api/categoryVideos';
+import { getVideoCategories } from '@/services/api/videoCategories';
 
-const _STATUSES = ['À monter', 'En cours', 'Terminé'];
-
-// Filtres prédéfinis pour faciliter le filtrage rapide
 const PRESET_FILTERS = [
   { id: 'all', label: 'Toutes', filter: () => true },
   { id: 'a-monter', label: 'À monter', filter: (video: Video) => video.production_status === 'À monter' },
@@ -37,7 +35,6 @@ const PRESET_FILTERS = [
   { id: 'pret', label: 'Prêtes', filter: (video: Video) => video.production_status === 'Prêt à publier' }
 ];
 
-// Options de tri
 const SORT_OPTIONS = [
   { id: 'newest', label: 'Plus récent' },
   { id: 'oldest', label: 'Plus ancien' },
@@ -69,9 +66,7 @@ function NewVideoWithCategoryDialog() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
-  // Charger les catégories au montage du composant ou à l'ouverture du dialogue
   useEffect(() => {
-    // Si le dialogue n'est pas ouvert, ne pas charger les données
     if (!open) return;
     
     let isMounted = true;
@@ -79,17 +74,11 @@ function NewVideoWithCategoryDialog() {
     setError(null);
     
     async function loadCategories() {
-      const supabase = createClient();
       try {
-        const { data, error } = await supabase
-          .from('video_categories')
-          .select('id, title')
-          .order('title', { ascending: true });
+        const categoriesData = await getVideoCategories();
 
-        if (error) throw error;
-
-        if (data && isMounted) {
-          setCategories(data);
+        if (categoriesData && isMounted) {
+          setCategories(categoriesData);
         }
       } catch (err) {
         console.error("Erreur lors du chargement des catégories:", err);
@@ -110,7 +99,6 @@ function NewVideoWithCategoryDialog() {
     };
   }, [open]);
 
-  // Réinitialiser la sélection quand la modale se ferme
   useEffect(() => {
     if (!open) {
       setSelectedCategory("");
@@ -213,14 +201,12 @@ export default function VideosPage() {
   const [_showFiltersDialog, _setShowFiltersDialog] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Détection de la taille de l'écran
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
     };
     
-    // Initialiser l'état isMobile au chargement
     if (typeof window !== 'undefined') {
       setIsMobile(window.innerWidth < 768);
     }
@@ -229,7 +215,6 @@ export default function VideosPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Fonction pour détecter le scroll et cacher/montrer les filtres sur mobile
   const [isScrollingDown, setIsScrollingDown] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
 
@@ -248,65 +233,21 @@ export default function VideosPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
-  // Charger les données
   useEffect(() => {
     async function loadData() {
-      const supabase = createClient();
       setLoading(true);
       setError(null);
       
       try {
-        // 1. Récupérer les vidéos
-        let videosData;
+        // Récupérer les vidéos de catégories
+        const videosData = await getCategoryVideos();
         
-        const categoryVideosResult = await supabase
-          .from('category_videos')
-          .select('*')
-          .order('created_at', { ascending: false });
+        // Récupérer les catégories
+        const categoriesData = await getVideoCategories();
         
-        const videosError = categoryVideosResult.error;
-        
-        videosData = categoryVideosResult.data;
-        
-        // Afficher les données en console pour debug
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Données récupérées (category_videos):', videosData);
-          console.log('Structure des données:', videosData && videosData.length > 0 ? 
-                    Object.keys(videosData[0]).join(', ') : 'Aucune donnée');
-        }
-        
-        if (videosError) {
-          // Si échec, essayer avec la table "videos" comme fallback
-          const fallbackResult = await supabase
-            .from('videos')
-            .select('*')
-            .order('created_at', { ascending: false });
-            
-          if (fallbackResult.error) throw fallbackResult.error;
-          videosData = fallbackResult.data;
-        }
-        
-        // 2. Récupérer toutes les catégories
-        const { data: categoriesData, error: categoriesError } = await supabase
-          .from('video_categories')
-          .select('*')
-          .order('title', { ascending: true });
-          
-        if (categoriesError) throw categoriesError;
-        
-        // 3. Joindre manuellement les données des catégories aux vidéos
-        const formattedVideos = videosData ? videosData.map((video: {
-          id: number;
-          title: string;
-          description: string | null;
-          category_id: number;
-          created_at: string;
-          updated_at: string;
-          status?: string;
-          production_status?: string;
-          thumbnail_url?: string;
-        }) => {
-          const category = categoriesData?.find((cat: { id: number }) => cat.id === video.category_id);
+        // Formater les vidéos avec leurs informations de catégorie
+        const formattedVideos = videosData.map((video) => {
+          const category = categoriesData?.find((cat) => cat.id === video.category_id);
           return {
             ...video,
             category: category ? {
@@ -314,19 +255,16 @@ export default function VideosPage() {
               identifier: category.identifier
             } : undefined
           };
-        }) : [];
+        });
         
         setVideos(formattedVideos);
         setFilteredVideos(formattedVideos);
         setCategories(categoriesData || []);
       } catch (error: Error | unknown) {
-        // Enregistrer l'erreur uniquement en développement
         if (process.env.NODE_ENV === 'development') {
           console.error('Erreur lors du chargement des données:', error);
         }
         setError((error as Error)?.message || "Impossible de charger les données.");
-        
-        // Essayer d'initialiser avec des données vides pour éviter de bloquer l'interface
         setVideos([]);
         setFilteredVideos([]);
         setCategories([]);
@@ -338,7 +276,6 @@ export default function VideosPage() {
     loadData();
   }, []);
   
-  // Fonction de tri des vidéos selon différents critères
   const sortVideos = useCallback((videos: Video[], sortOption: string) => {
     const videosCopy = [...videos];
     
@@ -396,13 +333,11 @@ export default function VideosPage() {
     }
   }, []);
 
-  // Fonction de filtrage mise à jour
   const applyFilters = useCallback(() => {
     if (videos.length === 0) return;
 
     let results = [...videos];
 
-    // Appliquer le filtre de statut
     if (activePresetFilter !== 'all') {
       const activeFilter = PRESET_FILTERS.find(f => f.id === activePresetFilter);
       if (activeFilter) {
@@ -410,7 +345,6 @@ export default function VideosPage() {
       }
     }
 
-    // Appliquer le filtre de recherche
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       results = results.filter(video => 
@@ -419,33 +353,27 @@ export default function VideosPage() {
       );
     }
 
-    // Appliquer le tri
     results = sortVideos(results, dateSort);
 
     setFilteredVideos(results);
   }, [videos, activePresetFilter, searchQuery, dateSort, sortVideos]);
 
-  // Mettre à jour les filtres quand les critères changent
   useEffect(() => {
     applyFilters();
   }, [applyFilters, videos, activePresetFilter, searchQuery, dateSort]);
 
-  // Gestionnaire de changement de recherche
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
 
-  // Gestionnaire de changement de filtre
   const handleFilterChange = (filterId: string) => {
     setActivePresetFilter(filterId);
   };
 
-  // Gestionnaire de changement de tri
   const handleSortChange = (value: string) => {
     setDateSort(value);
   };
 
-  // Gérer la sélection de catégories
   const handleCategoryToggle = (categoryId: number) => {
     setSelectedCategories(prev => {
       if (prev.includes(categoryId)) {
@@ -456,19 +384,15 @@ export default function VideosPage() {
     });
   };
   
-  // Appliquer un filtre prédéfini
   const applyPresetFilter = (filterId: string) => {
     if (activePresetFilter === filterId) {
-      // Si on clique sur le filtre déjà actif, on le désactive
       setActivePresetFilter('all');
     } else {
       setActivePresetFilter(filterId);
-      // Réinitialiser les autres filtres pour éviter les conflits
       setSelectedCategories([]);
     }
   };
 
-  // Calculer le nombre de vidéos par filtre prédéfini
   const getFilterCount = (filterId: string) => {
     if (filterId === 'all') return videos.length;
     const filter = PRESET_FILTERS.find(f => f.id === filterId);
@@ -476,7 +400,6 @@ export default function VideosPage() {
     return videos.filter(filter.filter).length;
   };
 
-  // Fonction pour regrouper les vidéos par catégorie
   const getVideosGroupedByCategory = () => {
     if (!groupByCategory) return { ungrouped: filteredVideos };
     
@@ -495,7 +418,6 @@ export default function VideosPage() {
     return grouped;
   };
   
-  // Obtenir le titre d'une catégorie par son ID
   const getCategoryTitle = (categoryId: string) => {
     if (categoryId === 'uncategorized') return 'Sans catégorie';
     const category = categories.find(c => c.id.toString() === categoryId);
@@ -620,7 +542,7 @@ export default function VideosPage() {
                         ...video,
                         description: video.description || undefined
                       }}
-                      href={`/video/${video.id}`}
+                      href={`/videos/${video.id}`}
                       size={isMobile ? 'small' : 'default'}
                     />
                   ))}
@@ -641,14 +563,49 @@ export default function VideosPage() {
 
 function VideoListSkeleton({ isMobile }: { isMobile: boolean }) {
   return (
-    <ResponsiveGrid>
-      {[...Array(6)].map((_, i) => (
-        <Skeleton 
-          key={i} 
-          className={`${isMobile ? 'h-48' : 'h-64'} w-full rounded-lg`} 
-          aria-label="Chargement des vidéos..."
-        />
-      ))}
-    </ResponsiveGrid>
+    <div className="space-y-6">
+      {/* Skeleton pour la barre de recherche et les filtres */}
+      <div className="space-y-4 mb-6">
+        <div className="flex flex-col sm:flex-row md:items-center gap-4">
+          <Skeleton className="h-10 flex-1 rounded-md" />
+          <Skeleton className="h-10 w-full sm:w-[180px] rounded-md" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-8 w-24 rounded-md" />
+          ))}
+        </div>
+      </div>
+      
+      {/* Skeleton pour les cartes de vidéos */}
+      <ResponsiveGrid>
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="rounded-lg border overflow-hidden shadow-sm">
+            {/* Thumbnail */}
+            <Skeleton 
+              className={`${isMobile ? 'h-36' : 'h-48'} w-full rounded-t-lg`} 
+            />
+            
+            {/* Contenu de la carte */}
+            <div className="p-4 space-y-3">
+              {/* Titre */}
+              <Skeleton className="h-6 w-3/4 rounded-md" />
+              
+              {/* Description */}
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full rounded-md" />
+                <Skeleton className="h-4 w-2/3 rounded-md" />
+              </div>
+              
+              {/* Métadonnées */}
+              <div className="flex justify-between items-center pt-2">
+                <Skeleton className="h-5 w-16 rounded-md" />
+                <Skeleton className="h-5 w-24 rounded-md" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </ResponsiveGrid>
+    </div>
   );
 } 

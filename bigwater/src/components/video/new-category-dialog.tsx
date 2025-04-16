@@ -3,7 +3,7 @@
 import { FolderPlus } from "lucide-react";
 import { useState } from "react";
 
-import { NewCategoryForm } from "@/components/video/NewCategoryForm";
+import { NewCategoryForm } from "@/components/video/new-category-form";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,12 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/components/ui/overlays/dialog";
 import { cn } from "@/lib/utils";
 
 interface NewCategoryDialogProps {
-  buttonVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | "success";
-  buttonSize?: "default" | "sm" | "lg" | "icon" | "xs";
+  buttonVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+  buttonSize?: "default" | "sm" | "lg" | "icon" | "xl";
   buttonClassName?: string;
   buttonIcon?: React.ReactNode;
 }

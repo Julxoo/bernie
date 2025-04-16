@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { MobileActions } from '@/components/layout/mobile-actions';
-import { NewCategoryDialog } from '@/components/video/NewCategoryDialog';
+import { NewCategoryDialog } from '@/components/video/new-category-dialog';
 
 export function ClientActionsWrapper() {
   const [isScrollingDown, setIsScrollingDown] = useState(false);

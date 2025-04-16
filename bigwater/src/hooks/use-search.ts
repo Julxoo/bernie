@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-import { createClient } from '@/utils/supabase/client';
+import { createClient } from '@/services/supabase/client';
 
 export type SearchResultType = 'video' | 'category';
 
@@ -72,7 +72,7 @@ export function useSearch() {
             id: video.id,
             title: video.title,
             type: 'video' as SearchResultType,
-            url: `/video/${video.id}`,
+            url: `/videos/${video.id}`,
             identifier: video.identifier,
             categoryInfo: {
               id: video.category_id,

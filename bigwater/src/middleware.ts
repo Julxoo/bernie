@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createClient } from '@/utils/supabase/middleware';
+import { createClient } from '@/services/supabase/middleware';
 
 // Routes qui ne nécessitent pas d'authentification
 const publicRoutes = ['/login', '/forgot-password', '/reset-password'];

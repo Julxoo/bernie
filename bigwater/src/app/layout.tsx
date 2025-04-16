@@ -1,7 +1,7 @@
 // ./app/layout.tsx
 import { Geist } from "next/font/google";
 
-import { AppProvider } from "@/components/app-provider";
+import { AppProvider } from "@/providers/app-provider";
 import "./globals.css";
 
 const geistSans = Geist({

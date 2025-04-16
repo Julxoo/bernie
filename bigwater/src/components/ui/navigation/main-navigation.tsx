@@ -17,14 +17,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState, useRef } from "react";
 
-import { Button } from "./button";
-import { Dialog, DialogContent } from "./dialog";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/overlays/dialog";
 import { SearchBar } from "@/components/ui/search-bar";
 
 import { Logo } from "@/components/logo";
-import { MobileNavBar } from "@/components/ui/mobile-nav-bar";
+import { MobileNavBar } from "@/components/ui/navigation/mobile-nav-bar";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/services/supabase/client";
 
 interface NavItemProps {
   href: string;

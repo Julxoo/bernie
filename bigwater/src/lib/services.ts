@@ -80,43 +80,127 @@ export const videoService = {
     return data as VideoDetails;
   },
 
+  // Fonction utilitaire pour vérifier et créer un enregistrement video_details si nécessaire
+  async _ensureVideoDetailsExist(videoId: number, partialData: Partial<VideoDetails> = {}) {
+    try {
+      // Vérifier si les détails de vidéo existent
+      const { data: existingDetails, error: checkError } = await supabase
+        .from('video_details')
+        .select('id')
+        .eq('category_video_id', videoId)
+        .maybeSingle();
+  
+      if (checkError) throw checkError;
+      
+      // Si les détails n'existent pas, créer un nouvel enregistrement
+      if (!existingDetails) {
+        // Récupérer les infos de base de la vidéo
+        const { data: videoData, error: videoError } = await supabase
+          .from('category_videos')
+          .select('title, production_status')
+          .eq('id', videoId)
+          .single();
+          
+        if (videoError) throw videoError;
+        
+        // Insérer un nouvel enregistrement de détails
+        const { data, error } = await supabase
+          .from('video_details')
+          .insert({
+            category_video_id: videoId,
+            title: videoData.title,
+            production_status: videoData.production_status,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            ...partialData
+          })
+          .select()
+          .single();
+          
+        if (error) throw error;
+        return { created: true, data: data as VideoDetails };
+      }
+      
+      return { created: false, detailsId: existingDetails.id };
+    } catch (error) {
+      console.error("Erreur lors de la vérification/création des détails vidéo:", error);
+      throw error;
+    }
+  },
+
   // Mettre à jour la description d'une vidéo
   async updateVideoDescription(videoId: number, description: string) {
-    const { data, error } = await supabase
-      .from('video_details')
-      .update({ description, updated_at: new Date().toISOString() })
-      .eq('category_video_id', videoId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data as VideoDetails;
+    try {
+      // Vérifier et créer l'enregistrement si nécessaire
+      const result = await this._ensureVideoDetailsExist(videoId, { description });
+      
+      // Si l'enregistrement a été créé, retourner les données
+      if (result.created) return result.data;
+      
+      // Sinon, mettre à jour les détails existants
+      const { data, error } = await supabase
+        .from('video_details')
+        .update({ description, updated_at: new Date().toISOString() })
+        .eq('category_video_id', videoId)
+        .select()
+        .single();
+  
+      if (error) throw error;
+      return data as VideoDetails;
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour de la description:", error);
+      throw error;
+    }
   },
 
   // Mettre à jour les instructions de miniature
   async updateVideoInstructions(videoId: number, instructions: string) {
-    const { data, error } = await supabase
-      .from('video_details')
-      .update({ instructions_miniature: instructions, updated_at: new Date().toISOString() })
-      .eq('category_video_id', videoId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data as VideoDetails;
+    try {
+      // Vérifier et créer l'enregistrement si nécessaire
+      const result = await this._ensureVideoDetailsExist(videoId, { instructions_miniature: instructions });
+      
+      // Si l'enregistrement a été créé, retourner les données
+      if (result.created) return result.data;
+      
+      // Sinon, mettre à jour les détails existants
+      const { data, error } = await supabase
+        .from('video_details')
+        .update({ instructions_miniature: instructions, updated_at: new Date().toISOString() })
+        .eq('category_video_id', videoId)
+        .select()
+        .single();
+  
+      if (error) throw error;
+      return data as VideoDetails;
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour des instructions:", error);
+      throw error;
+    }
   },
 
   // Mettre à jour un lien (rush, vidéo ou miniature)
   async updateVideoLink(videoId: number, linkType: 'rush_link' | 'video_link' | 'miniature_link', url: string) {
-    const { data, error } = await supabase
-      .from('video_details')
-      .update({ [linkType]: url, updated_at: new Date().toISOString() })
-      .eq('category_video_id', videoId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data as VideoDetails;
+    try {
+      // Vérifier et créer l'enregistrement si nécessaire
+      const result = await this._ensureVideoDetailsExist(videoId, { [linkType]: url });
+      
+      // Si l'enregistrement a été créé, retourner les données
+      if (result.created) return result.data;
+      
+      // Sinon, mettre à jour les détails existants
+      const { data, error } = await supabase
+        .from('video_details')
+        .update({ [linkType]: url, updated_at: new Date().toISOString() })
+        .eq('category_video_id', videoId)
+        .select()
+        .single();
+  
+      if (error) throw error;
+      return data as VideoDetails;
+    } catch (error) {
+      console.error(`Erreur lors de la mise à jour du lien ${linkType}:`, error);
+      throw error;
+    }
   },
 
   // Mettre à jour le titre d'une catégorie

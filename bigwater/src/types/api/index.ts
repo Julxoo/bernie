@@ -91,3 +91,17 @@ export interface CasinoReport {
   created_at: string | null;
   data: Record<string, any>;
 } 
+
+export interface VideoDetails {
+  id: number;
+  category_video_id: number;
+  title: string;
+  description: string | null;
+  production_status: VideoStatus;
+  rush_link: string | null;
+  video_link: string | null;
+  miniature_link: string | null;
+  instructions_miniature: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}

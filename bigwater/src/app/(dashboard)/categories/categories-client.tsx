@@ -13,17 +13,16 @@ import { useState, useEffect, useMemo, useRef } from "react";
 
 import type { VideoCategory } from "@/types/api";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/data-display/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/layout/card";
+import { Input } from "@/components/ui/inputs/input";
 import { MobileFilterDrawer } from "@/components/ui/mobile-filter-drawer";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/feedback/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/data-display/tabs";
 import { 
   TooltipProvider, 
-} from "@/components/ui/tooltip";
-import { SelectItem } from "@/components/ui/select";
+} from "@/components/ui/overlays/tooltip";
 
 // Types de tri disponibles
 type SortType = "title" | "last_updated" | "count";

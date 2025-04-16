@@ -1,6 +1,6 @@
 // ./app/(dashboard)/layout.tsx
 import { Navigation } from '@/components/ui/navigation';
-import { Toaster } from '@/components/ui/sonner';
+import { Toaster } from '@/components/ui/feedback/sonner';
 
 export default function DashboardLayout({
   children,

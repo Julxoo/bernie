@@ -8,4 +8,7 @@ export * from './auth';
 export * from './common';
 
 // Exporter tous les types d'API et Supabase
-export * from './api'; 
+export * from './api';
+
+// Note: Les types de database.ts sont déjà exportés via ./api
+// export * from './database';

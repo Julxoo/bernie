@@ -5,15 +5,17 @@ import { ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/feedback/skeleton";
 
 import { updateProfileAction, updatePasswordAction } from "@/app/actions";
 import { FormMessage, Message } from "@/components/form-message";
 import { PageContainer, PageContent } from '@/components/layout/page-container';
 import { EnhancedPageHeader } from '@/components/layout/page-header';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/inputs/input";
 import { Label } from "@/components/ui/label";
-import { createClient as createClientBrowser } from "@/utils/supabase/client";
+import { createClient as createClientBrowser } from "@/services/supabase/client";
+import { getProfile } from "@/services/api/profiles";
 
 // Composant AccountInfo unifié
 function AccountInfo({
@@ -89,26 +91,31 @@ export default function ProfilePage() {
           return;
         }
         
-        // Récupérer les données du profil
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('name, email, role')
-          .eq('id', user.id)
-          .single();
-        
-        if (profileError) {
-          throw profileError;
+        // Récupérer les données du profil via l'API
+        try {
+          const profile = await getProfile(user.id);
+          
+          // Mettre à jour les états
+          setName(profile?.name || "");
+          setEmail(profile?.email || user.email || "");
+          setUserId(user.id);
+          setUserInfo({
+            id: user.id,
+            email: profile?.email || user.email || '',
+            last_sign_in_at: user.last_sign_in_at
+          });
+        } catch (profileError) {
+          console.error('Erreur lors de la récupération du profil:', profileError);
+          // Utiliser les données minimales de l'utilisateur
+          setName("");
+          setEmail(user.email || "");
+          setUserId(user.id);
+          setUserInfo({
+            id: user.id,
+            email: user.email || '',
+            last_sign_in_at: user.last_sign_in_at
+          });
         }
-        
-        // Mettre à jour les états
-        setName(profile?.name || "");
-        setEmail(profile?.email || user.email || "");
-        setUserId(user.id);
-        setUserInfo({
-          id: user.id,
-          email: profile?.email || user.email || '',
-          last_sign_in_at: user.last_sign_in_at
-        });
         
         setIsLoading(false);
       } catch (error) {
@@ -223,8 +230,91 @@ export default function ProfilePage() {
           description="Chargement de votre profil..."
         />
         <PageContent>
-          <div className="flex items-center justify-center p-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+          <div className="space-y-10">
+            {/* Skeleton pour les Informations du compte */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <Skeleton className="h-5 w-5 rounded-full" />
+                <Skeleton className="h-8 w-60" />
+              </div>
+              <div className="rounded-lg border border-border bg-card/50 backdrop-blur-sm p-6 shadow-md mb-8">
+                <Skeleton className="h-6 w-52 mb-4" />
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 p-2 rounded bg-background/50">
+                    <Skeleton className="h-5 w-14" />
+                    <Skeleton className="h-5 w-48" />
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded bg-background/50">
+                    <Skeleton className="h-5 w-8" />
+                    <Skeleton className="h-5 w-64" />
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded bg-background/50">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-5 w-40" />
+                  </div>
+                </div>
+              </div>
+            </section>
+            
+            {/* Skeleton pour le Profil */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <Skeleton className="h-5 w-5 rounded-full" />
+                <Skeleton className="h-8 w-24" />
+              </div>
+              <div className="rounded-lg border border-border bg-card/50 backdrop-blur-sm p-6 shadow-md">
+                <Skeleton className="h-6 w-48 mb-6" />
+                <div className="space-y-4">
+                  <div className="grid gap-1.5">
+                    <Skeleton className="h-5 w-12" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-4 w-48 mt-1" />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                  <div className="flex items-center justify-end mt-6">
+                    <Skeleton className="h-10 w-48" />
+                  </div>
+                </div>
+              </div>
+            </section>
+            
+            {/* Skeleton pour la Sécurité */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <Skeleton className="h-5 w-5 rounded-full" />
+                <Skeleton className="h-8 w-28" />
+              </div>
+              <div className="rounded-lg border border-border bg-card/50 backdrop-blur-sm p-6 shadow-md">
+                <Skeleton className="h-6 w-48 mb-6" />
+                <div className="space-y-4">
+                  <div className="grid gap-1.5">
+                    <Skeleton className="h-5 w-36" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Skeleton className="h-5 w-40" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-4 w-72 mt-1" />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Skeleton className="h-5 w-64" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                  <div className="flex items-center justify-end mt-6">
+                    <Skeleton className="h-10 w-48" />
+                  </div>
+                </div>
+                
+                <div className="pt-6 mt-6 border-t">
+                  <Skeleton className="h-6 w-32 mb-4" />
+                  <Skeleton className="h-4 w-full mb-4" />
+                  <Skeleton className="h-10 w-32" />
+                </div>
+              </div>
+            </section>
           </div>
         </PageContent>
       </PageContainer>

@@ -6,11 +6,11 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
-import { Button } from './button';
-import { Input } from './input';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/inputs/input';
 import { SearchResults } from '@/components/ui/search-results';
 
-import { useSearch } from '@/components/hooks/use-search';
+import { useSearch } from '@/hooks/use-search';
 
 
 

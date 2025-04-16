@@ -3,7 +3,7 @@
 import { PlusCircle } from "lucide-react";
 import { useState } from "react";
 
-import { NewVideoForm } from "./NewVideoForm";
+import { NewVideoForm } from "./new-video-form";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,14 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/components/ui/overlays/dialog";
 import { cn } from "@/lib/utils";
 
 interface NewVideoDialogProps {
   categoryId: number;
   categoryTitle: string;
-  buttonVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | "success";
-  buttonSize?: "default" | "sm" | "lg" | "icon" | "xs";
+  buttonVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+  buttonSize?: "default" | "sm" | "lg" | "icon" | "xl";
   buttonClassName?: string;
   buttonIcon?: React.ReactNode;
 }

@@ -4,8 +4,8 @@ import { Folder, ChevronRight, Clock, RotateCw, CheckCircle } from 'lucide-react
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/data-display/badge';
+import { Card, CardContent } from '@/components/ui/layout/card';
 import { cn } from '@/lib/utils';
 
 
@@ -33,7 +33,7 @@ export type VideoCardProps = {
   interactive?: boolean;
   /** Afficher ou non les détails de catégorie */
   showCategory?: boolean;
-  /** URL personnalisée pour le lien, par défaut /video/[id] */
+  /** URL personnalisée pour le lien, par défaut /videos/[id] */
   href?: string;
   /** Classe CSS personnalisée */
   className?: string;
@@ -80,7 +80,7 @@ export function VideoCard({
   const effectiveSize = isMobile ? 'small' : size;
   
   const videoStatus = video.status || video.production_status || 'À monter';
-  const linkPath = href || (video.id ? `/video/${video.id}` : '/videos');
+  const linkPath = href || (video.id ? `/videos/${video.id}` : '/videos');
   
   // Formater l'identifiant selon le format standardisé #A-2
   const formatVideoIdentifier = () => {
