@@ -67,7 +67,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       breadcrumbs: [{ title: "Accueil" }]
     },
     
-    '/categories': {
+    '/dashboard/categories': {
       icon: <FolderIcon className="h-6 w-6" />,
       title: "Catégories",
       breadcrumbs: [
@@ -76,7 +76,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       ]
     },
     
-    '/videos': {
+    '/dashboard/videos': {
       icon: <VideoCameraIcon className="h-6 w-6" />,
       title: "Gestion des Vidéos",
       breadcrumbs: [
@@ -105,7 +105,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       ]
     },
     
-    '/admin': {
+    '/dashboard/admin': {
       icon: <ShieldCheckIcon className="h-6 w-6" />,
       title: "Administration",
       description: "Paramètres administrateur",

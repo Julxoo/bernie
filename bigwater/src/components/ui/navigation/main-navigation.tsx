@@ -247,11 +247,11 @@ const Header = ({
   // Fonction pour déterminer le titre de la page en fonction du chemin
   const getPageTitle = (path: string) => {
     if (path.startsWith("/dashboard")) return "Accueil";
-    if (path.startsWith("/categories")) return "Catégories";
-    if (path.startsWith("/videos")) return "Gestion des Vidéos";
+    if (path.startsWith("/dashboard/categories")) return "Catégories";
+    if (path.startsWith("/dashboard/videos")) return "Gestion des Vidéos";
     if (path.startsWith("/statistics")) return "Statistiques";
     if (path.startsWith("/dashboard/profile")) return "Profil";
-    if (path.startsWith("/admin")) return "Administration";
+    if (path.startsWith("/dashboard/admin")) return "Administration";
     if (path.startsWith("/settings")) return "Paramètres";
     // if (path.startsWith("/users")) return "Utilisateurs";
     // if (path.startsWith("/casino-reports")) return "Rapports Casino";
@@ -442,12 +442,12 @@ export function Navigation({ children }: NavigationProps) {
       label: "Accueil"
     },
     {
-      href: "/videos",
+      href: "/dashboard/videos",
       icon: <VideoCameraIcon className="h-6 w-6 md:h-5 md:w-5" />,
       label: "Vidéos"
     },
     {
-      href: "/categories",
+      href: "/dashboard/categories",
       icon: <FolderIcon className="h-6 w-6 md:h-5 md:w-5" />,
       label: "Catégories"
     },
@@ -461,7 +461,7 @@ export function Navigation({ children }: NavigationProps) {
   // Si l'utilisateur est admin et n'est pas déjà sur une page admin, ajouter le lien admin
   if (isAdmin && !isAdminPath) {
     standardNavItems.push({
-      href: "/admin",
+      href: "/dashboard/admin",
       icon: <ShieldCheckIcon className="h-6 w-6 md:h-5 md:w-5" />,
       label: "Admin"
     });
@@ -470,17 +470,17 @@ export function Navigation({ children }: NavigationProps) {
   // Navigation items pour l'admin
   const adminNavItems = [
     {
-      href: "/admin",
+      href: "/dashboard/admin",
       icon: <Squares2X2Icon className="h-6 w-6 md:h-5 md:w-5" />,
       label: "Admin Dashboard"
     },
     // {
-    //   href: "/admin/users",
+    //   href: "/dashboard/admin/users",
     //   icon: <UserIcon className="h-6 w-6 md:h-5 md:w-5" />,
     //   label: "Utilisateurs"
     // },
     // {
-    //   href: "/admin/casino",
+    //   href: "/dashboard/admin/casino",
     //   icon: <ChartBarIcon className="h-6 w-6 md:h-5 md:w-5" />,
     //   label: "Casino"
     // },

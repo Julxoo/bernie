@@ -24,11 +24,11 @@ export function Logo({ className, variant = 'default' }: LogoProps) {
 
   const getPageIcon = (): ReactNode => {
     if (pathname?.startsWith('/dashboard')) return <Squares2X2Icon className="h-6 w-6 text-primary" />;
-    if (pathname?.startsWith('/categories')) return <FolderIcon className="h-6 w-6 text-primary" />;
-    if (pathname?.startsWith('/videos')) return <VideoCameraIcon className="h-6 w-6 text-primary" />;
+    if (pathname?.startsWith('/dashboard/categories')) return <FolderIcon className="h-6 w-6 text-primary" />;
+    if (pathname?.startsWith('/dashboard/videos')) return <VideoCameraIcon className="h-6 w-6 text-primary" />;
     if (pathname?.startsWith('/statistics')) return <ChartBarIcon className="h-6 w-6 text-primary" />;
     if (pathname?.startsWith('/dashboard/profile')) return <UserIcon className="h-6 w-6 text-primary" />;
-    if (pathname?.startsWith('/admin')) return <ShieldCheckIcon className="h-6 w-6 text-primary" />;
+    if (pathname?.startsWith('/dashboard/admin')) return <ShieldCheckIcon className="h-6 w-6 text-primary" />;
     if (pathname?.startsWith('/settings')) return <Cog6ToothIcon className="h-6 w-6 text-primary" />;
     return <span className="text-primary font-bold text-xl">B</span>;
   };

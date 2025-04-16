@@ -48,32 +48,32 @@ export function MobileNavBar({ isAdmin = false }: MobileNavBarProps) {
       activePattern: /^\/dashboard/
     },
     {
-      href: "/videos",
+      href: "/dashboard/videos",
       label: "Vidéos",
       icon: <VideoCameraIcon className="h-5 w-5" />,
-      activePattern: /^\/videos|^\/video\//
+      activePattern: /^\/dashboard\/videos/
     },
     {
-      href: "/categories",
+      href: "/dashboard/categories",
       label: "Catégories",
       icon: <FolderIcon className="h-5 w-5" />, 
-      activePattern: /^\/categories|^\/category\//
+      activePattern: /^\/dashboard\/categories/
     },
     {
       href: "/dashboard/profile",
       label: "Profil",
       icon: <UserIcon className="h-5 w-5" />, 
-      activePattern: /^\/categories|^\/category\//
+      activePattern: /^\/dashboard\/profile/
     }
   ];
   
   // Ajouter le lien Admin uniquement si l'utilisateur est admin
   if (isAdmin) {
     navItems.push({
-      href: "/admin",
+      href: "/dashboard/admin",
       label: "Admin",
       icon: <ShieldCheckIcon className="h-5 w-5" />,
-      activePattern: /^\/admin/
+      activePattern: /^\/dashboard\/admin/
     });
   }
 

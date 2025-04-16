@@ -294,7 +294,7 @@ export default function CategoryPage() {
 
   // Fonction pour naviguer vers la page précédente
   const goBack = () => {
-    router.push('/categories');
+    router.push('/dashboard/categories');
   };
 
   function NewVideoInCategoryButton() {

@@ -356,7 +356,7 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                   />
                   
                   <Button asChild size="sm" className="sm:hidden">
-                    <Link href="/categories/new">
+                    <Link href="/dashboard/categories/new">
                       <Plus className="h-4 w-4" />
                     </Link>
                   </Button>
@@ -522,7 +522,7 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                             transition={{ duration: 0.2 }}
                           >
                             <Link 
-                              href={`/categories/${category.id}`}
+                              href={`/dashboard/categories/${category.id}`}
                               className="h-full block"
                             >
                               <Card className="h-full cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all duration-200 overflow-hidden group">
@@ -547,12 +547,13 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                                       <div className="space-y-1 max-h-24 overflow-y-auto">
                                         {matchingVideosInfo[category.id].map(video => (
                                           <div key={video.videoId} className="flex items-center gap-1 text-xs p-1 pl-2 bg-background rounded">
-                                            <span className="line-clamp-1 flex-1">{video.videoTitle}</span>
-                                            {video.videoIdentifier && (
-                                              <Badge variant="outline" className="h-5 text-[10px]">
-                                                #{video.videoIdentifier}
-                                              </Badge>
-                                            )}
+                                            <Link 
+                                              href={`/dashboard/videos/${video.videoId}`}
+                                              className="hover:underline text-primary"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              {video.videoTitle}
+                                            </Link>
                                           </div>
                                         ))}
                                       </div>
