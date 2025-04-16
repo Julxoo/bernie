@@ -246,13 +246,13 @@ const Header = ({
   
   // Fonction pour déterminer le titre de la page en fonction du chemin
   const getPageTitle = (path: string) => {
-    if (path.startsWith("/dashboard")) return "Accueil";
+    if (path.startsWith("/dashboard/dashboard")) return "Accueil";
     if (path.startsWith("/dashboard/categories")) return "Catégories";
     if (path.startsWith("/dashboard/videos")) return "Gestion des Vidéos";
-    if (path.startsWith("/statistics")) return "Statistiques";
+    if (path.startsWith("/dashboard/statistics")) return "Statistiques";
     if (path.startsWith("/dashboard/profile")) return "Profil";
     if (path.startsWith("/dashboard/admin")) return "Administration";
-    if (path.startsWith("/settings")) return "Paramètres";
+    if (path.startsWith("/dashboard/settings")) return "Paramètres";
     // if (path.startsWith("/users")) return "Utilisateurs";
     // if (path.startsWith("/casino-reports")) return "Rapports Casino";
     return "BigWater";
@@ -266,7 +266,7 @@ const Header = ({
     if (segments[0] === 'admin') {
       return (
         <div className="flex items-center text-xs text-muted-foreground">
-          <Link href="/dashboard" className="hover:text-foreground">Accueil</Link>
+          <Link href="/dashboard/dashboard" className="hover:text-foreground">Accueil</Link>
           <span className="mx-1.5">›</span>
           <span>Administration</span>
         </div>
@@ -437,7 +437,7 @@ export function Navigation({ children }: NavigationProps) {
   // Navigation items standards
   const standardNavItems = [
     {
-      href: "/dashboard",
+      href: "/dashboard/dashboard",
       icon: <Squares2X2Icon className="h-6 w-6 md:h-5 md:w-5" />,
       label: "Accueil"
     },
@@ -461,7 +461,7 @@ export function Navigation({ children }: NavigationProps) {
   // Si l'utilisateur est admin et n'est pas déjà sur une page admin, ajouter le lien admin
   if (isAdmin && !isAdminPath) {
     standardNavItems.push({
-      href: "/dashboard/admin",
+      href: "/admin",
       icon: <ShieldCheckIcon className="h-6 w-6 md:h-5 md:w-5" />,
       label: "Admin"
     });
@@ -475,18 +475,18 @@ export function Navigation({ children }: NavigationProps) {
       label: "Admin Dashboard"
     },
     // {
-    //   href: "/dashboard/admin/users",
+    //   href: "/admin/users",
     //   icon: <UserIcon className="h-6 w-6 md:h-5 md:w-5" />,
     //   label: "Utilisateurs"
     // },
     // {
-    //   href: "/dashboard/admin/casino",
+    //   href: "/admin/casino",
     //   icon: <ChartBarIcon className="h-6 w-6 md:h-5 md:w-5" />,
     //   label: "Casino"
     // },
     // Bouton de retour avec mise en évidence visuelle
     {
-      href: "/dashboard",
+      href: "/dashboard/dashboard",
       icon: <HomeIcon className="h-6 w-6 md:h-5 md:w-5" />,
       label: "Retour au site",
       highlight: true

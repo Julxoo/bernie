@@ -52,10 +52,10 @@ export function VideoCompletionOverlay({
       router.push(returnUrl);
       onClose();
     } else if (category?.id) {
-      router.push(`/categories/${category.id}`);
+      router.push(`/dashboard/categories/${category.id}`);
       onClose();
     } else {
-      router.push('/videos');
+      router.push('/dashboard/videos');
       onClose();
     }
   };

@@ -49,7 +49,7 @@ interface PageHeaderProps {
 const DEFAULT_CONFIG: PageTitleConfig = {
   icon: <HomeIcon className="h-6 w-6" />,
   title: "AlexSeta",
-  breadcrumbs: [{ title: "Accueil", href: "/dashboard" }]
+  breadcrumbs: [{ title: "Accueil", href: "/dashboard/dashboard" }]
 };
 
 /**
@@ -67,20 +67,20 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       breadcrumbs: [{ title: "Accueil" }]
     },
     
-    '/dashboard/categories': {
+    '/categories': {
       icon: <FolderIcon className="h-6 w-6" />,
       title: "Catégories",
       breadcrumbs: [
-        { title: "Accueil", href: "/dashboard" },
+        { title: "Accueil", href: "/dashboard/dashboard" },
         { title: "Catégories" }
       ]
     },
     
-    '/dashboard/videos': {
+    '/videos': {
       icon: <VideoCameraIcon className="h-6 w-6" />,
       title: "Gestion des Vidéos",
       breadcrumbs: [
-        { title: "Accueil", href: "/dashboard" },
+        { title: "Accueil", href: "/dashboard/dashboard" },
         { title: "Vidéos" }
       ]
     },
@@ -90,7 +90,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       title: "Statistiques",
       description: "Analysez les performances de vos vidéos",
       breadcrumbs: [
-        { title: "Accueil", href: "/dashboard" },
+        { title: "Accueil", href: "/dashboard/dashboard" },
         { title: "Statistiques" }
       ]
     },
@@ -100,17 +100,17 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       title: "Profil",
       description: "Gérez vos informations personnelles",
       breadcrumbs: [
-        { title: "Accueil", href: "/dashboard" },
+        { title: "Accueil", href: "/dashboard/dashboard" },
         { title: "Profil" }
       ]
     },
     
-    '/dashboard/admin': {
+    '/admin': {
       icon: <ShieldCheckIcon className="h-6 w-6" />,
       title: "Administration",
       description: "Paramètres administrateur",
       breadcrumbs: [
-        { title: "Accueil", href: "/dashboard" },
+        { title: "Accueil", href: "/dashboard/dashboard" },
         { title: "Administration" }
       ]
     },
@@ -120,7 +120,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       title: "Paramètres",
       description: "Configurez vos préférences",
       breadcrumbs: [
-        { title: "Accueil", href: "/dashboard" },
+        { title: "Accueil", href: "/dashboard/dashboard" },
         { title: "Paramètres" }
       ]
     },
@@ -130,7 +130,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       title: "Utilisateurs",
       description: "Gérez les utilisateurs de la plateforme",
       breadcrumbs: [
-        { title: "Accueil", href: "/dashboard" },
+        { title: "Accueil", href: "/dashboard/dashboard" },
         { title: "Utilisateurs" }
       ]
     },
@@ -140,7 +140,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       title: "Rapports Casino",
       description: "Gérez et analysez les rapports casino",
       breadcrumbs: [
-        { title: "Accueil", href: "/dashboard" },
+        { title: "Accueil", href: "/dashboard/dashboard" },
         { title: "Rapports Casino" }
       ]
     }

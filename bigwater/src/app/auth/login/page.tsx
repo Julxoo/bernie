@@ -27,7 +27,7 @@ export default async function Login({
   }
   
   // Récupérer l'URL de redirection des paramètres de recherche
-  const redirectUrl = params?.redirectUrl || "/dashboard";
+  const redirectUrl = params?.redirectUrl || "/dashboard/dashboard";
   
   return (
     <div className="w-full max-w-md mx-auto">

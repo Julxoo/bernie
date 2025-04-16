@@ -552,12 +552,12 @@ export default function DashboardPage() {
             <QuickActionCard
               icon={<BellRing className="h-5 w-5" />}
               title="Dernières activités"
-              href="/dashboard/videos?sort=updated_at&sortDir=desc"
+              href="/videos?sort=updated_at&sortDir=desc"
             />
             <QuickActionCard
               icon={<FilePieChart className="h-5 w-5" />}
               title="Vidéos en cours"
-              href="/dashboard/videos?filter=en-cours"
+              href="/videos?filter=en-cours"
             />
           </div>
           
@@ -590,7 +590,7 @@ export default function DashboardPage() {
                       {activities && activities.length > 0 ? (
                         activities.map((activity, i) => (
                           <Link 
-                            href={`/dashboard/videos/${activity.id}`} 
+                            href={`/videos/${activity.id}`} 
                             key={i} 
                             className="block"
                           >

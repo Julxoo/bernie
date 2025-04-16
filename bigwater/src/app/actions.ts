@@ -25,7 +25,7 @@ export const encodedRedirect = async (
 export const signInAction = async (formData: FormData) => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
-  const redirectUrl = formData.get("redirectUrl") as string || "/dashboard";
+  const redirectUrl = formData.get("redirectUrl") as string || "/dashboard/dashboard";
   const supabase = await createClient();
 
   if (!email || !password) {

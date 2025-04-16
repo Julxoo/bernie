@@ -65,7 +65,7 @@ export function AdminMobileNav() {
       hash: "casino"
     },
     {
-      href: "/dashboard",
+      href: "/dashboard/dashboard",
       label: "Retour",
       icon: <ArrowLeftOnRectangleIcon className="h-5 w-5" />
     }

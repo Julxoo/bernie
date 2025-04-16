@@ -93,7 +93,7 @@ export default async function VideoDetailPage(props: any) {
     }
 
     // Définir le chemin de retour
-    const returnUrl = category ? `/dashboard/categories/${category.id}` : '/dashboard/videos';
+    const returnUrl = category ? `/categories/${category.id}` : '/videos';
 
     // Tout s'est bien passé, retournons les données
     return (
@@ -102,9 +102,9 @@ export default async function VideoDetailPage(props: any) {
           title={video.title}
           badge={video.identifier ? { text: `#${video.identifier}`, variant: "outline" } : undefined}
           breadcrumbs={[
-            { title: "Accueil", href: "/dashboard" },
+            { title: "Accueil", href: "/dashboard/dashboard" },
             { title: "Vidéos", href: "/dashboard/videos" },
-            ...(category ? [{ title: category.title, href: `/dashboard/categories/${category.id}` }] : []),
+            ...(category ? [{ title: category.title, href: `/categories/${category.id}` }] : []),
             { title: video.title }
           ]}
           actions={
@@ -137,7 +137,7 @@ export default async function VideoDetailPage(props: any) {
         <EnhancedPageHeader 
           title="Erreur" 
           breadcrumbs={[
-            { title: "Accueil", href: "/dashboard" },
+            { title: "Accueil", href: "/dashboard/dashboard" },
             { title: "Vidéos", href: "/dashboard/videos" },
             { title: "Erreur" }
           ]}
@@ -150,7 +150,7 @@ export default async function VideoDetailPage(props: any) {
               {error instanceof Error ? error.message : "Erreur inconnue"}
             </p>
             <Button variant="outline" asChild className="mt-4">
-              <Link href="/dashboard/videos">
+              <Link href="/videos">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Retour à la liste des vidéos
               </Link>
