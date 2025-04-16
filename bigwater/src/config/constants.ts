@@ -23,10 +23,13 @@ export const COLORS = {
 export const ROUTES = {
   HOME: '/',
   DASHBOARD: '/dashboard',
-  VIDEOS: '/videos',
-  CATEGORIES: '/categories',
-  PROFILE: '/profile',
-  ADMIN: '/admin',
+  VIDEOS: '/dashboard/videos',
+  CATEGORIES: '/dashboard/categories',
+  PROFILE: '/dashboard/profile',
+  ADMIN: '/dashboard/admin',
+  LOGIN: '/auth/login',
+  FORGOT_PASSWORD: '/auth/forgot-password',
+  RESET_PASSWORD: '/auth/reset-password',
 };
 
 // Autres constantes globales

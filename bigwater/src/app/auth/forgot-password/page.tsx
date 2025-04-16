@@ -66,7 +66,7 @@ export default async function ForgotPassword({
             <div className="text-center pt-2">
               <Link 
                 className="text-sm text-primary/80 hover:text-primary underline" 
-                href="/login"
+                href="/auth/login"
               >
                 Retour à la connexion
               </Link>

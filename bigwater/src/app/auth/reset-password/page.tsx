@@ -18,7 +18,7 @@ export default async function ResetPassword({
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return redirect("/login");
+    return redirect("/auth/login");
   }
   
   // Accéder aux valeurs de searchParams de manière asynchrone

@@ -250,7 +250,7 @@ const Header = ({
     if (path.startsWith("/categories")) return "Catégories";
     if (path.startsWith("/videos")) return "Gestion des Vidéos";
     if (path.startsWith("/statistics")) return "Statistiques";
-    if (path.startsWith("/profile")) return "Profil";
+    if (path.startsWith("/dashboard/profile")) return "Profil";
     if (path.startsWith("/admin")) return "Administration";
     if (path.startsWith("/settings")) return "Paramètres";
     // if (path.startsWith("/users")) return "Utilisateurs";
@@ -452,7 +452,7 @@ export function Navigation({ children }: NavigationProps) {
       label: "Catégories"
     },
     {
-      href: "/profile",
+      href: "/dashboard/profile",
       icon: <UserIcon className="h-6 w-6 md:h-5 md:w-5" />,
       label: "Profil"
     }

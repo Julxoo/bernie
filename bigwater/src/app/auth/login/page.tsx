@@ -61,7 +61,7 @@ export default async function Login({
                 <Label htmlFor="password">Mot de passe</Label>
                 <Link
                   className="text-xs text-primary/80 hover:text-primary underline"
-                  href="/forgot-password"
+                  href="/auth/forgot-password"
                 >
                   Mot de passe oublié?
                 </Link>

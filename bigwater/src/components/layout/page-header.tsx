@@ -95,7 +95,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       ]
     },
     
-    '/profile': {
+    '/dashboard/profile': {
       icon: <UserIcon className="h-6 w-6" />,
       title: "Profil",
       description: "Gérez vos informations personnelles",

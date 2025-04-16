@@ -3,10 +3,10 @@ import type { NextRequest } from 'next/server';
 import { createClient } from '@/services/supabase/middleware';
 
 // Routes qui ne nécessitent pas d'authentification
-const publicRoutes = ['/login', '/forgot-password', '/reset-password'];
+const publicRoutes = ['/auth/login', '/auth/forgot-password', '/auth/reset-password'];
 
 // Routes qui sont accessibles seulement aux utilisateurs non connectés
-const authRoutes = ['/login', '/forgot-password'];
+const authRoutes = ['/auth/login', '/auth/forgot-password'];
 
 export async function middleware(request: NextRequest) {
   const { supabase, response } = createClient(request);
@@ -20,14 +20,14 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Rediriger vers le tableau de bord si l'utilisateur accède à une page d'authentification alors qu'il est déjà connecté
-  if (isAuthenticated && authRoutes.includes(pathname)) {
+  if (isAuthenticated && authRoutes.some(route => pathname.startsWith(route))) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   // Pour les routes protégées, vérifier si l'utilisateur est authentifié
   if (!isAuthenticated && !publicRoutes.some(route => pathname.startsWith(route))) {
     // Si l'utilisateur n'est pas connecté et tente d'accéder à une route protégée, rediriger vers la page de connexion
-    const redirectUrl = new URL('/login', request.url);
+    const redirectUrl = new URL('/auth/login', request.url);
     // Toujours rediriger vers /dashboard après connexion
     redirectUrl.searchParams.set('redirectUrl', '/dashboard');
     return NextResponse.redirect(redirectUrl);

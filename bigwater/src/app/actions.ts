@@ -25,11 +25,11 @@ export const encodedRedirect = async (
 export const signInAction = async (formData: FormData) => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
-  const redirectUrl = "/dashboard";
+  const redirectUrl = formData.get("redirectUrl") as string || "/dashboard";
   const supabase = await createClient();
 
   if (!email || !password) {
-    return encodedRedirect("error", "/login", "Adresse email et mot de passe requis");
+    return encodedRedirect("error", "/auth/login", "Adresse email et mot de passe requis");
   }
 
   const { error } = await supabase.auth.signInWithPassword({
@@ -38,7 +38,7 @@ export const signInAction = async (formData: FormData) => {
   });
 
   if (error) {
-    return encodedRedirect("error", "/login", error.message);
+    return encodedRedirect("error", "/auth/login", error.message);
   }
 
   return redirect(redirectUrl);
@@ -50,25 +50,25 @@ export const forgotPasswordAction = async (formData: FormData) => {
   const origin = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
   if (!email) {
-    return encodedRedirect("error", "/forgot-password", "Adresse email requise");
+    return encodedRedirect("error", "/auth/forgot-password", "Adresse email requise");
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?redirect_to=/reset-password`,
+    redirectTo: `${origin}/auth/callback?redirect_to=/auth/reset-password`,
   });
 
   if (error) {
     console.error(error.message);
     return encodedRedirect(
       "error",
-      "/forgot-password",
+      "/auth/forgot-password",
       "Impossible de réinitialiser le mot de passe"
     );
   }
 
   return encodedRedirect(
     "success",
-    "/forgot-password",
+    "/auth/forgot-password",
     "Consultez votre email pour réinitialiser votre mot de passe"
   );
 };
@@ -82,7 +82,7 @@ export const resetPasswordAction = async (formData: FormData) => {
   if (!password || !confirmPassword) {
     return encodedRedirect(
       "error",
-      "/protected/reset-password",
+      "/auth/reset-password",
       "Le mot de passe et sa confirmation sont requis"
     );
   }
@@ -90,7 +90,7 @@ export const resetPasswordAction = async (formData: FormData) => {
   if (password !== confirmPassword) {
     return encodedRedirect(
       "error",
-      "/protected/reset-password",
+      "/auth/reset-password",
       "Les mots de passe ne correspondent pas"
     );
   }
@@ -102,14 +102,14 @@ export const resetPasswordAction = async (formData: FormData) => {
   if (error) {
     return encodedRedirect(
       "error",
-      "/protected/reset-password",
+      "/auth/reset-password",
       "La mise à jour du mot de passe a échoué"
     );
   }
 
   return encodedRedirect(
     "success", 
-    "/protected/reset-password", 
+    "/auth/reset-password", 
     "Mot de passe mis à jour avec succès"
   );
 };
@@ -117,7 +117,7 @@ export const resetPasswordAction = async (formData: FormData) => {
 export const signOutAction = async () => {
   const supabase = await createClient();
   await supabase.auth.signOut();
-  return redirect("/login");
+  return redirect("/auth/login");
 };
 
 export const updateProfileAction = async (formData: FormData) => {
@@ -125,13 +125,13 @@ export const updateProfileAction = async (formData: FormData) => {
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
-    return encodedRedirect("error", "/login", "Utilisateur non connecté");
+    return encodedRedirect("error", "/auth/login", "Utilisateur non connecté");
   }
   
   const fullName = formData.get("fullName") as string;
   
   if (!fullName || fullName.trim() === '') {
-    return encodedRedirect("error", "/profile", "Le nom ne peut pas être vide", { tab: "profile" });
+    return encodedRedirect("error", "/dashboard/profile", "Le nom ne peut pas être vide", { tab: "profile" });
   }
   
   // Récupérer le profil actuel pour comparer
@@ -143,14 +143,14 @@ export const updateProfileAction = async (formData: FormData) => {
   
   // Si le nom n'a pas changé, ne rien faire
   if (currentProfile?.name === fullName) {
-    return encodedRedirect("success", "/profile", "Aucune modification détectée", { tab: "profile" });
+    return encodedRedirect("success", "/dashboard/profile", "Aucune modification détectée", { tab: "profile" });
   }
   
   // Obtenir l'email de l'utilisateur
   const email = currentProfile?.email || user.email;
   
   if (!email) {
-    return encodedRedirect("error", "/profile", "Impossible de récupérer l'email de l'utilisateur", { tab: "profile" });
+    return encodedRedirect("error", "/dashboard/profile", "Impossible de récupérer l'email de l'utilisateur", { tab: "profile" });
   }
   
   // S'assurer que le rôle est défini
@@ -168,7 +168,7 @@ export const updateProfileAction = async (formData: FormData) => {
   
   if (profileError) {
     console.error("Erreur lors de la mise à jour du profil:", profileError.message);
-    return encodedRedirect("error", "/profile", `Erreur lors de la mise à jour du profil: ${profileError.message}`, { tab: "profile" });
+    return encodedRedirect("error", "/dashboard/profile", `Erreur lors de la mise à jour du profil: ${profileError.message}`, { tab: "profile" });
   }
   
   // Enregistrer l'activité de l'utilisateur
@@ -184,7 +184,7 @@ export const updateProfileAction = async (formData: FormData) => {
     // Ne pas échouer si l'enregistrement de l'activité échoue
   }
   
-  return encodedRedirect("success", "/profile", "Profil mis à jour avec succès", { tab: "profile" });
+  return encodedRedirect("success", "/dashboard/profile", "Profil mis à jour avec succès", { tab: "profile" });
 };
 
 export const updatePasswordAction = async (formData: FormData) => {
@@ -196,21 +196,21 @@ export const updatePasswordAction = async (formData: FormData) => {
   
   // Validation basique
   if (!currentPassword || !newPassword || !confirmPassword) {
-    return encodedRedirect("error", "/profile", "Tous les champs de mot de passe sont requis", { tab: "security" });
+    return encodedRedirect("error", "/dashboard/profile", "Tous les champs de mot de passe sont requis", { tab: "security" });
   }
   
   if (newPassword !== confirmPassword) {
-    return encodedRedirect("error", "/profile", "Les nouveaux mots de passe ne correspondent pas", { tab: "security" });
+    return encodedRedirect("error", "/dashboard/profile", "Les nouveaux mots de passe ne correspondent pas", { tab: "security" });
   }
   
   if (newPassword.length < 8) {
-    return encodedRedirect("error", "/profile", "Le mot de passe doit contenir au moins 8 caractères", { tab: "security" });
+    return encodedRedirect("error", "/dashboard/profile", "Le mot de passe doit contenir au moins 8 caractères", { tab: "security" });
   }
   
   // Récupérer les informations utilisateur actuelles
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user?.email) {
-    return encodedRedirect("error", "/profile", "Impossible de récupérer les informations utilisateur", { tab: "security" });
+    return encodedRedirect("error", "/dashboard/profile", "Impossible de récupérer les informations utilisateur", { tab: "security" });
   }
   
   // Vérifier le mot de passe actuel en se reconnectant
@@ -220,7 +220,7 @@ export const updatePasswordAction = async (formData: FormData) => {
   });
   
   if (signInError) {
-    return encodedRedirect("error", "/profile", "Le mot de passe actuel est incorrect", { tab: "security" });
+    return encodedRedirect("error", "/dashboard/profile", "Le mot de passe actuel est incorrect", { tab: "security" });
   }
   
   // Mettre à jour le mot de passe
@@ -230,7 +230,7 @@ export const updatePasswordAction = async (formData: FormData) => {
   
   if (error) {
     console.error("Erreur lors de la mise à jour du mot de passe:", error.message);
-    return encodedRedirect("error", "/profile", `La mise à jour du mot de passe a échoué: ${error.message}`, { tab: "security" });
+    return encodedRedirect("error", "/dashboard/profile", `La mise à jour du mot de passe a échoué: ${error.message}`, { tab: "security" });
   }
   
   // Enregistrer l'activité de l'utilisateur
@@ -246,5 +246,5 @@ export const updatePasswordAction = async (formData: FormData) => {
     // Ne pas échouer si l'enregistrement de l'activité échoue
   }
   
-  return encodedRedirect("success", "/profile", "Mot de passe mis à jour avec succès", { tab: "security" });
+  return encodedRedirect("success", "/dashboard/profile", "Mot de passe mis à jour avec succès", { tab: "security" });
 };
