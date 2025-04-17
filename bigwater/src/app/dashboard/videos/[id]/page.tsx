@@ -13,11 +13,14 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/feedback/skeleton';
 import { VideoContainer } from '@/components/video/id/video-container';
 
-// Désactiver temporairement la règle ESLint pour ce cas spécifique
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default async function VideoDetailPage(props: any) {
-  // Utiliser directement les paramètres
-  const { id } = props.params;
+export default async function VideoDetailPage({
+  params
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  // Attendre la résolution de la Promise params
+  const resolvedParams = await params;
+  const { id } = resolvedParams;
   const videoId = parseInt(id);
   
   if (isNaN(videoId)) {
@@ -41,7 +44,45 @@ export default async function VideoDetailPage(props: any) {
       if (error) throw error;
       if (!data) throw new Error('Vidéo non trouvée');
       
-      video = data as CategoryVideo & { video_details: VideoDetails };
+      // Définir un type temporaire pour faciliter la manipulation des données
+      type CategoryVideoWithDetails = CategoryVideo & { 
+        video_details: VideoDetails | VideoDetails[] | null;
+        description?: string | null;
+        miniature_instruction?: string | null;
+        link_rush?: string | null;
+        link_video?: string | null;
+        link_miniature?: string | null;
+      };
+      
+      // Cast des données avec notre type
+      const videoData = data as CategoryVideoWithDetails;
+      
+      // Supabase renvoie la relation 1→1 sous forme de tableau ;
+      // on aplatit donc le premier (et unique) élément pour rester cohérent
+      if (Array.isArray(videoData.video_details)) {
+        videoData.video_details = videoData.video_details[0] || {} as VideoDetails;
+      }
+
+      // Fusionner les champs éventuellement stockés directement dans category_videos
+      const cat = videoData as CategoryVideo & { video_details?: VideoDetails };
+      const details = cat.video_details || {} as VideoDetails;
+
+      cat.video_details = {
+        id: details.id ?? 0,
+        category_video_id: videoId,
+        title: details.title ?? cat.title,
+        production_status: details.production_status ?? cat.production_status,
+        // Priorité : valeur dans video_details sinon colonne de category_videos sinon null
+        description: details.description ?? (cat as CategoryVideo & { description?: string | null }).description ?? null,
+        instructions_miniature: details.instructions_miniature ?? (cat as CategoryVideo & { miniature_instruction?: string | null }).miniature_instruction ?? null,
+        rush_link: details.rush_link ?? (cat as CategoryVideo & { link_rush?: string | null }).link_rush ?? null,
+        video_link: details.video_link ?? (cat as CategoryVideo & { link_video?: string | null }).link_video ?? null,
+        miniature_link: details.miniature_link ?? (cat as CategoryVideo & { link_miniature?: string | null }).link_miniature ?? null,
+        created_at: details.created_at ?? cat.created_at,
+        updated_at: details.updated_at ?? cat.updated_at
+      } as VideoDetails;
+
+      video = videoData as CategoryVideo & { video_details: VideoDetails };
     } catch (error) {
       console.error('Erreur lors de la récupération de la vidéo:', error);
       throw new Error(`Erreur lors de la récupération de la vidéo: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);

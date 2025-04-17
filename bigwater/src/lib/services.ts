@@ -93,6 +93,9 @@ export const videoService = {
   async getCategoryVideos(categoryId: number) {
     const { data, error } = await supabase
       .from('category_videos')
+      // La jointure Supabase renvoie un tableau pour les relations 1→1 ;
+      // on aplatit donc le premier (et unique) élément afin de toujours
+      // renvoyer un objet `video_details` cohérent.
       .select(`
         *,
         video_details (*)
@@ -101,19 +104,35 @@ export const videoService = {
       .order('identifier', { ascending: true });
 
     if (error) throw error;
-    return data as (CategoryVideo & { video_details: VideoDetails })[];
+
+    // Aplatissement de `video_details` si nécessaire
+    const cleaned = (data as (CategoryVideo & { video_details: VideoDetails | VideoDetails[] })[]).map((v) => {
+      if (Array.isArray(v.video_details)) {
+        v.video_details = v.video_details[0] || null;
+      }
+      return v;
+    });
+
+    return cleaned as (CategoryVideo & { video_details: VideoDetails })[];
   },
 
   // Récupérer les détails d'une vidéo
   async getVideoDetails(videoId: number) {
     const { data, error } = await supabase
-      .from('video_details')
-      .select('*')
-      .eq('category_video_id', videoId)
+      .from('category_videos')
+      .select(`*, video_details (*)`)
+      .eq('id', videoId)
       .single();
 
     if (error) throw error;
-    return data as VideoDetails;
+
+    // On récupère uniquement la partie details et on l'aplatit si besoin
+    // (cas standard : un seul élément dans le tableau)
+    const details = Array.isArray(data.video_details)
+      ? data.video_details[0] || null
+      : (data.video_details as VideoDetails | null);
+
+    return details as VideoDetails;
   },
 
   // Mettre à jour le statut d'une vidéo
@@ -268,134 +287,48 @@ export const videoService = {
 
   // Mettre à jour la description d'une vidéo
   async updateVideoDescription(videoId: number, description: string) {
-    try {
-      // Obtenir la catégorie de la vidéo
-      const { data: video, error: getVideoError } = await supabase
-        .from('category_videos')
-        .select('category_id')
-        .eq('id', videoId)
-        .single();
-        
-      if (getVideoError) throw getVideoError;
-      
-      const categoryId = video.category_id;
-      
-      // Vérifier et créer l'enregistrement si nécessaire
-      const result = await this._ensureVideoDetailsExist(videoId, { description });
-      
-      // Si l'enregistrement a été créé, retourner les données
-      if (result.created) {
-        // Mettre à jour les compteurs de la catégorie
-        await this._updateCategoryCounter(categoryId);
-        return result.data;
-      }
-      
-      // Sinon, mettre à jour les détails existants
-      const { data, error } = await supabase
-        .from('video_details')
-        .update({ description, updated_at: new Date().toISOString() })
-        .eq('category_video_id', videoId)
-        .select()
-        .single();
-  
-      if (error) throw error;
-      
-      // Mettre à jour les compteurs de la catégorie
-      await this._updateCategoryCounter(categoryId);
-      
-      return data as VideoDetails;
-    } catch (error) {
-      console.error("Erreur lors de la mise à jour de la description:", error);
-      throw error;
-    }
+    // Mise à jour directe de la colonne "description" dans category_videos
+    const { error } = await supabase
+      .from('category_videos')
+      .update({ description, updated_at: new Date().toISOString() })
+      .eq('id', videoId);
+
+    if (error) throw error;
+
+    return { success: true };
   },
 
   // Mettre à jour les instructions de miniature
   async updateVideoInstructions(videoId: number, instructions: string) {
-    try {
-      // Obtenir la catégorie de la vidéo
-      const { data: video, error: getVideoError } = await supabase
-        .from('category_videos')
-        .select('category_id')
-        .eq('id', videoId)
-        .single();
-        
-      if (getVideoError) throw getVideoError;
-      
-      const categoryId = video.category_id;
-      
-      // Vérifier et créer l'enregistrement si nécessaire
-      const result = await this._ensureVideoDetailsExist(videoId, { instructions_miniature: instructions });
-      
-      // Si l'enregistrement a été créé, retourner les données
-      if (result.created) {
-        // Mettre à jour les compteurs de la catégorie
-        await this._updateCategoryCounter(categoryId);
-        return result.data;
-      }
-      
-      // Sinon, mettre à jour les détails existants
-      const { data, error } = await supabase
-        .from('video_details')
-        .update({ instructions_miniature: instructions, updated_at: new Date().toISOString() })
-        .eq('category_video_id', videoId)
-        .select()
-        .single();
-  
-      if (error) throw error;
-      
-      // Mettre à jour les compteurs de la catégorie
-      await this._updateCategoryCounter(categoryId);
-      
-      return data as VideoDetails;
-    } catch (error) {
-      console.error("Erreur lors de la mise à jour des instructions:", error);
-      throw error;
-    }
+    const { error } = await supabase
+      .from('category_videos')
+      .update({ miniature_instruction: instructions, updated_at: new Date().toISOString() })
+      .eq('id', videoId);
+
+    if (error) throw error;
+
+    return { success: true };
   },
 
   // Mettre à jour un lien (rush, vidéo ou miniature)
   async updateVideoLink(videoId: number, linkType: 'rush_link' | 'video_link' | 'miniature_link', url: string) {
-    try {
-      // Obtenir la catégorie de la vidéo
-      const { data: video, error: getVideoError } = await supabase
-        .from('category_videos')
-        .select('category_id')
-        .eq('id', videoId)
-        .single();
-        
-      if (getVideoError) throw getVideoError;
-      
-      const categoryId = video.category_id;
-      
-      // Vérifier et créer l'enregistrement si nécessaire
-      const result = await this._ensureVideoDetailsExist(videoId, { [linkType]: url });
-      
-      // Si l'enregistrement a été créé, retourner les données
-      if (result.created) {
-        // Mettre à jour les compteurs de la catégorie
-        await this._updateCategoryCounter(categoryId);
-        return result.data;
-      }
-      
-      // Sinon, mettre à jour les détails existants
-      const { data, error } = await supabase
-        .from('video_details')
-        .update({ [linkType]: url, updated_at: new Date().toISOString() })
-        .eq('category_video_id', videoId)
-        .select()
-        .single();
-  
-      if (error) throw error;
-      
-      // Mettre à jour les compteurs de la catégorie
-      await this._updateCategoryCounter(categoryId);
-      
-      return data as VideoDetails;
-    } catch (error) {
-      console.error(`Erreur lors de la mise à jour du lien ${linkType}:`, error);
-      throw error;
-    }
+    // Correspondance entre le type de lien utilisé dans l'UI et la colonne réelle
+    const columnMap: Record<typeof linkType, string> = {
+      rush_link: 'link_rush',
+      video_link: 'link_video',
+      miniature_link: 'link_miniature'
+    } as const;
+
+    const columnName = columnMap[linkType];
+
+    const { error } = await supabase
+      .from('category_videos')
+      .update({ [columnName]: url, updated_at: new Date().toISOString() })
+      .eq('id', videoId);
+
+    if (error) throw error;
+
+    return { success: true };
   },
 
   // Mettre à jour le titre d'une catégorie
