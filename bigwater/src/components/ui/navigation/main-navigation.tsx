@@ -389,7 +389,7 @@ export function Navigation({ children }: NavigationProps) {
   const supabase = createClient();
   
   // Déterminer si la page actuelle est dans la section admin
-  const isAdminPath = pathname.startsWith('/admin');
+  const isAdminPath = pathname.startsWith('/dashboard/admin');
   
   useEffect(() => {
     async function handleAdminCheck() {
@@ -431,7 +431,7 @@ export function Navigation({ children }: NavigationProps) {
   
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    window.location.href = '/login';
+    window.location.href = '/auth/login';
   };
   
   // Navigation items standards
@@ -461,7 +461,7 @@ export function Navigation({ children }: NavigationProps) {
   // Si l'utilisateur est admin et n'est pas déjà sur une page admin, ajouter le lien admin
   if (isAdmin && !isAdminPath) {
     standardNavItems.push({
-      href: "/admin",
+      href: "/dashboard/admin",
       icon: <ShieldCheckIcon className="h-6 w-6 md:h-5 md:w-5" />,
       label: "Admin"
     });
@@ -474,17 +474,6 @@ export function Navigation({ children }: NavigationProps) {
       icon: <Squares2X2Icon className="h-6 w-6 md:h-5 md:w-5" />,
       label: "Admin Dashboard"
     },
-    // {
-    //   href: "/admin/users",
-    //   icon: <UserIcon className="h-6 w-6 md:h-5 md:w-5" />,
-    //   label: "Utilisateurs"
-    // },
-    // {
-    //   href: "/admin/casino",
-    //   icon: <ChartBarIcon className="h-6 w-6 md:h-5 md:w-5" />,
-    //   label: "Casino"
-    // },
-    // Bouton de retour avec mise en évidence visuelle
     {
       href: "/dashboard/dashboard",
       icon: <HomeIcon className="h-6 w-6 md:h-5 md:w-5" />,

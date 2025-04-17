@@ -356,7 +356,7 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                   />
                   
                   <Button asChild size="sm" className="sm:hidden">
-                    <Link href="/categories/new">
+                    <Link href="/dashboard/categories/new">
                       <Plus className="h-4 w-4" />
                     </Link>
                   </Button>
@@ -522,7 +522,7 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                             transition={{ duration: 0.2 }}
                           >
                             <Link 
-                              href={`/categories/${category.id}`}
+                              href={`/dashboard/categories/${category.id}`}
                               className="h-full block"
                             >
                               <Card className="h-full cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all duration-200 overflow-hidden group">

@@ -80,14 +80,14 @@ export function useSearch() {
             id: category.id,
             title: category.title,
             type: 'category' as SearchResultType,
-            url: `/categories/${category.id}`,
+            url: `/dashboard/categories/${category.id}`,
             identifier: category.identifier
           })),
           ...videos.map((video: VideoSearchResult) => ({
             id: video.id,
             title: video.title,
             type: 'video' as SearchResultType,
-            url: `/videos/${video.id}`,
+            url: `/dashboard/videos/${video.id}`,
             identifier: video.identifier,
             categoryInfo: {
               id: video.category_id,

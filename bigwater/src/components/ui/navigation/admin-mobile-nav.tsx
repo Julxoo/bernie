@@ -48,18 +48,18 @@ export function AdminMobileNav() {
   // Liste des éléments de navigation pour l'admin
   const navItems: NavItem[] = [
     {
-      href: "/admin",
+      href: "/dashboard/admin",
       label: "Admin",
       icon: <ShieldCheckIcon className="h-5 w-5" />
     },
     {
-      href: "/admin#users",
+      href: "/dashboard/admin#users",
       label: "Utilisateurs",
       icon: <UserGroupIcon className="h-5 w-5" />,
       hash: "users"
     },
     {
-      href: "/admin#casino",
+      href: "/dashboard/admin#casino",
       label: "Casino",
       icon: <Cog6ToothIcon className="h-5 w-5" />,
       hash: "casino"
@@ -74,12 +74,12 @@ export function AdminMobileNav() {
   const isActive = (item: NavItem) => {
     // Si c'est un élément avec un hash
     if (item.hash) {
-      return pathname === '/admin' && activeHash === item.hash;
+      return pathname === '/dashboard/admin' && activeHash === item.hash;
     }
     
     // Pour le lien Admin sans hash
-    if (item.href === '/admin' && !item.hash) {
-      return pathname === '/admin' && !activeHash;
+    if (item.href === '/dashboard/admin' && !item.hash) {
+      return pathname === '/dashboard/admin' && !activeHash;
     }
     
     // Pour les autres liens

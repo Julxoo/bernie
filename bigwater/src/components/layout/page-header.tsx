@@ -61,13 +61,13 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
   
   // Mappings des routes vers leurs configurations
   const routeConfigs: Record<string, PageTitleConfig> = {
-    '/dashboard': {
+    '/dashboard/dashboard': {
       icon: <Squares2X2Icon className="h-6 w-6" />,
       title: "Accueil",
       breadcrumbs: [{ title: "Accueil" }]
     },
     
-    '/categories': {
+    '/dashboard/categories': {
       icon: <FolderIcon className="h-6 w-6" />,
       title: "Catégories",
       breadcrumbs: [
@@ -76,7 +76,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       ]
     },
     
-    '/videos': {
+    '/dashboard/videos': {
       icon: <VideoCameraIcon className="h-6 w-6" />,
       title: "Gestion des Vidéos",
       breadcrumbs: [
@@ -85,7 +85,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       ]
     },
     
-    '/statistics': {
+    '/dashboard/statistics': {
       icon: <ChartBarIcon className="h-6 w-6" />,
       title: "Statistiques",
       description: "Analysez les performances de vos vidéos",
@@ -105,7 +105,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       ]
     },
     
-    '/admin': {
+    '/dashboard/admin': {
       icon: <ShieldCheckIcon className="h-6 w-6" />,
       title: "Administration",
       description: "Paramètres administrateur",
@@ -115,17 +115,7 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
       ]
     },
     
-    '/settings': {
-      icon: <Cog6ToothIcon className="h-6 w-6" />,
-      title: "Paramètres",
-      description: "Configurez vos préférences",
-      breadcrumbs: [
-        { title: "Accueil", href: "/dashboard/dashboard" },
-        { title: "Paramètres" }
-      ]
-    },
-    
-    '/users': {
+    '/dashboard/users': {
       icon: <UserIcon className="h-6 w-6" />,
       title: "Utilisateurs",
       description: "Gérez les utilisateurs de la plateforme",
@@ -134,16 +124,6 @@ const getPageConfig = (pathname: string): PageTitleConfig => {
         { title: "Utilisateurs" }
       ]
     },
-    
-    '/casino-reports': {
-      icon: <ChartBarIcon className="h-6 w-6" />,
-      title: "Rapports Casino",
-      description: "Gérez et analysez les rapports casino",
-      breadcrumbs: [
-        { title: "Accueil", href: "/dashboard/dashboard" },
-        { title: "Rapports Casino" }
-      ]
-    }
   };
   
   // Trouver la configuration correspondante

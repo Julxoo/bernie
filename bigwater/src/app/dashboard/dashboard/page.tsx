@@ -336,28 +336,28 @@ export default function DashboardPage() {
           value: formatNumber(totalVideos || 0),
           icon: <Film className="h-5 w-5" />,
           color: 'hsl(210, 95%, 60%)',
-          href: '/videos'
+          href: '/dashboard/videos'
         },
         { 
           title: 'À monter', 
           value: formatNumber(statusMap['À monter']),
           icon: <ClipboardList className="h-5 w-5" />,
           color: COLORS['À monter'],
-          href: '/videos?filter=a-monter'
+          href: '/dashboard/videos?filter=a-monter'
         },
         { 
           title: 'Terminées', 
           value: formatNumber(statusMap['Terminé']),
           icon: <CircleCheck className="h-5 w-5" />,
           color: COLORS['Terminé'],
-          href: '/videos?filter=termine'
+          href: '/dashboard/videos?filter=termine'
         },
         { 
           title: 'Catégories', 
           value: formatNumber(categoriesCount),
           icon: <FolderClosed className="h-5 w-5" />,
           color: 'hsl(40, 95%, 65%)',
-          href: '/categories'
+          href: '/dashboard/categories'
         },
       ];
       
@@ -374,28 +374,28 @@ export default function DashboardPage() {
           value: '0', 
           icon: <Film className="h-5 w-5" />,
           color: 'hsl(210, 95%, 60%)',
-          href: '/videos'
+          href: '/dashboard/videos'
         },
         { 
           title: 'À monter', 
           value: '0', 
           icon: <ClipboardList className="h-5 w-5" />,
           color: COLORS['À monter'],
-          href: '/videos?filter=a-monter'
+          href: '/dashboard/videos?filter=a-monter'
         },
         { 
           title: 'Terminées', 
           value: '0', 
           icon: <CircleCheck className="h-5 w-5" />,
           color: COLORS['Terminé'],
-          href: '/videos?filter=termine'
+          href: '/dashboard/videos?filter=termine'
         },
         { 
           title: 'Catégories', 
           value: '0', 
           icon: <FolderClosed className="h-5 w-5" />,
           color: 'hsl(40, 95%, 65%)',
-          href: '/categories'
+          href: '/dashboard/categories'
         }
       ]);
     } finally {
@@ -552,12 +552,12 @@ export default function DashboardPage() {
             <QuickActionCard
               icon={<BellRing className="h-5 w-5" />}
               title="Dernières activités"
-              href="/videos?sort=updated_at&sortDir=desc"
+              href="/dashboard/videos?sort=updated_at&sortDir=desc"
             />
             <QuickActionCard
               icon={<FilePieChart className="h-5 w-5" />}
               title="Vidéos en cours"
-              href="/videos?filter=en-cours"
+              href="/dashboard/videos?filter=en-cours"
             />
           </div>
           
@@ -590,7 +590,7 @@ export default function DashboardPage() {
                       {activities && activities.length > 0 ? (
                         activities.map((activity, i) => (
                           <Link 
-                            href={`/videos/${activity.id}`} 
+                            href={`/dashboard/videos/${activity.id}`} 
                             key={i} 
                             className="block"
                           >

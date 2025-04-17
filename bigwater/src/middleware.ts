@@ -21,7 +21,7 @@ export async function middleware(request: NextRequest) {
 
   // Rediriger vers le tableau de bord si l'utilisateur accède à une page d'authentification alors qu'il est déjà connecté
   if (isAuthenticated && authRoutes.some(route => pathname.startsWith(route))) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(new URL('/dashboard/dashboard', request.url));
   }
 
   // Pour les routes protégées, vérifier si l'utilisateur est authentifié
@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
     // Si l'utilisateur n'est pas connecté et tente d'accéder à une route protégée, rediriger vers la page de connexion
     const redirectUrl = new URL('/auth/login', request.url);
     // Toujours rediriger vers /dashboard après connexion
-    redirectUrl.searchParams.set('redirectUrl', '/dashboard');
+    redirectUrl.searchParams.set('redirectUrl', '/dashboard/dashboard');
     return NextResponse.redirect(redirectUrl);
   }
 

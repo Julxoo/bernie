@@ -512,7 +512,7 @@ export default function VideosPage() {
                         ...video,
                         description: video.description || undefined
                       }}
-                      href={`/videos/${video.id}`}
+                      href={`/dashboard/videos/${video.id}`}
                       size={isMobile ? 'small' : 'default'}
                     />
                   ))}

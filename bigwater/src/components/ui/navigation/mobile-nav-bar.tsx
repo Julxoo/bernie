@@ -31,7 +31,7 @@ export function MobileNavBar({ isAdmin = false }: MobileNavBarProps) {
 
   
   // Vérifier si nous sommes sur une page admin
-  const isAdminPath = pathname.startsWith('/admin');
+  const isAdminPath = pathname.startsWith('/dashboard/admin');
   
   // Si nous sommes sur une page admin, ne pas afficher cette barre de navigation
   // car elle sera remplacée par la barre admin spécifique
@@ -70,7 +70,7 @@ export function MobileNavBar({ isAdmin = false }: MobileNavBarProps) {
   // Ajouter le lien Admin uniquement si l'utilisateur est admin
   if (isAdmin) {
     navItems.push({
-      href: "/admin",
+      href: "/dashboard/admin",
       label: "Admin",
       icon: <ShieldCheckIcon className="h-5 w-5" />,
       activePattern: /^\/admin/

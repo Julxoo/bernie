@@ -80,7 +80,7 @@ export function VideoCard({
   const effectiveSize = isMobile ? 'small' : size;
   
   const videoStatus = video.status || video.production_status || 'À monter';
-  const linkPath = href || (video.id ? `/videos/${video.id}` : '/videos');
+  const linkPath = href || (video.id ? `/dashboard/videos/${video.id}` : '/dashboard/videos');
   
   // Formater l'identifiant selon le format standardisé #A-2
   const formatVideoIdentifier = () => {

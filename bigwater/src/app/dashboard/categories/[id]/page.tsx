@@ -380,8 +380,8 @@ export default function CategoryPage() {
         description={category?.description || 'Gérez les vidéos de cette catégorie'}
         icon={<Folder className="h-6 w-6" />}
         breadcrumbs={[
-          { title: 'Accueil', href: '/' },
-          { title: 'Catégories', href: '/categories' },
+          { title: 'Accueil', href: '/dashboard' },
+          { title: 'Catégories', href: '/dashboard/categories' },
           { title: category?.title || 'Catégorie' }
         ]}
         actions={
@@ -487,7 +487,7 @@ export default function CategoryPage() {
                         ...video,
                         description: video.description || video.video_details?.description || undefined
                       }}
-                      href={`/videos/${video.id}`}
+                      href={`/dashboard/videos/${video.id}`}
                     />
                   ))}
                 </ResponsiveGrid>

@@ -22,7 +22,7 @@ export const COLORS = {
 // Configuration des routes
 export const ROUTES = {
   HOME: '/',
-  DASHBOARD: '/dashboard',
+  DASHBOARD: '/dashboard/dashboard',
   VIDEOS: '/dashboard/videos',
   CATEGORIES: '/dashboard/categories',
   PROFILE: '/dashboard/profile',
