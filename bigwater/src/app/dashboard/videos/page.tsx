@@ -29,9 +29,9 @@ import { getVideoCategories } from '@/services/api/videoCategories';
 
 const PRESET_FILTERS = [
   { id: 'all', label: 'Toutes', filter: () => true },
-  { id: 'a-monter', label: 'À monter', filter: (video: Video) => video.production_status === 'À monter' },
-  { id: 'en-cours', label: 'En cours', filter: (video: Video) => video.production_status === 'En cours' },
-  { id: 'termine', label: 'Terminé', filter: (video: Video) => video.production_status === 'Terminé' }
+  { id: 'a-preparer', label: 'À préparer', filter: (video: Video) => video.production_status === 'À préparer' },
+  { id: 'pretes', label: 'Prêtes', filter: (video: Video) => video.production_status === 'Prêtes' },
+  { id: 'upload', label: 'Upload', filter: (video: Video) => video.production_status === 'Upload' }
 ];
 
 const SORT_OPTIONS = [
@@ -233,12 +233,12 @@ export default function VideosPage() {
       
       if (filterParam && PRESET_FILTERS.some(f => f.id === filterParam)) {
         setActivePresetFilter(filterParam);
-      } else if (statusParam === 'Terminé') {
-        setActivePresetFilter('termine');
-      } else if (statusParam === 'En cours') {
-        setActivePresetFilter('en-cours');
-      } else if (statusParam === 'À monter') {
-        setActivePresetFilter('a-monter');
+      } else if (statusParam === 'Upload') {
+        setActivePresetFilter('upload');
+      } else if (statusParam === 'Prêtes') {
+        setActivePresetFilter('pretes');
+      } else if (statusParam === 'À préparer') {
+        setActivePresetFilter('a-preparer');
       }
     }
   }, []);

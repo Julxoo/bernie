@@ -42,9 +42,9 @@ import { getProfiles } from '@/services/api/profiles';
 import { getUserActivities } from '@/services/api/userActivity';
 
 const COLORS = {
-  'À monter': 'hsl(40, 95%, 45%)',
-  'En cours': 'hsl(220, 95%, 45%)',
-  'Terminé': 'hsl(130, 95%, 35%)',
+  'À préparer': 'hsl(40, 95%, 45%)',
+  'Prêtes': 'hsl(220, 95%, 45%)',
+  'Upload': 'hsl(130, 95%, 35%)',
 };
 
 const getActivityIcon = (activity: ActivityItem) => {
@@ -52,9 +52,9 @@ const getActivityIcon = (activity: ActivityItem) => {
     return <FolderPlus className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
   } else if (activity.changeType === 'Création') {
     return <PlusCircle className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
-  } else if (activity.changeType === 'Changement de statut' && activity.status === 'Terminé') {
+  } else if (activity.changeType === 'Changement de statut' && activity.status === 'Upload') {
     return <CircleCheck className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
-  } else if (activity.changeType === 'Changement de statut' && activity.status === 'En cours') {
+  } else if (activity.changeType === 'Changement de statut' && activity.status === 'Prêtes') {
     return <Clock3 className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
   } else if (activity.changeType === 'Mise à jour de lien') {
     return <Link2 className="h-4 w-4 md:h-5 md:w-5 text-primary" />;
@@ -160,9 +160,9 @@ export default function DashboardPage() {
       
       const totalVideos = videos?.length || 0;
       const statusMap: Record<string, number> = { 
-        'À monter': 0, 
-        'En cours': 0, 
-        'Terminé': 0 
+        'À préparer': 0, 
+        'Prêtes': 0, 
+        'Upload': 0 
       };
       
       if (videos && videos.length > 0) {
@@ -172,9 +172,9 @@ export default function DashboardPage() {
           }
         });
       } else {
-        statusMap['À monter'] = Math.floor((totalVideos || 0) * 0.6) || 0;
-        statusMap['En cours'] = Math.floor((totalVideos || 0) * 0.3) || 0;
-        statusMap['Terminé'] = Math.floor((totalVideos || 0) * 0.1) || 0;
+        statusMap['À préparer'] = Math.floor((totalVideos || 0) * 0.6) || 0;
+        statusMap['Prêtes'] = Math.floor((totalVideos || 0) * 0.3) || 0;
+        statusMap['Upload'] = Math.floor((totalVideos || 0) * 0.1) || 0;
       }
 
       const categoriesCount = categories?.length || 0;
@@ -273,11 +273,11 @@ export default function DashboardPage() {
               let action = "modifiée";
               let changeType = "Modification";
               
-              if (video.production_status === 'Terminé') {
-                action = "marquée comme terminée";
+              if (video.production_status === 'Upload') {
+                action = "marquée comme Upload";
                 changeType = "Changement de statut";
-              } else if (video.production_status === 'En cours') {
-                action = "déplacée vers 'En cours'";
+              } else if (video.production_status === 'Prêtes') {
+                action = "déplacée vers 'Prêtes'";
                 changeType = "Changement de statut";
               }
               
@@ -339,18 +339,18 @@ export default function DashboardPage() {
           href: '/dashboard/videos'
         },
         { 
-          title: 'À monter', 
-          value: formatNumber(statusMap['À monter']),
+          title: 'À préparer', 
+          value: formatNumber(statusMap['À préparer']),
           icon: <ClipboardList className="h-5 w-5" />,
-          color: COLORS['À monter'],
-          href: '/dashboard/videos?filter=a-monter'
+          color: COLORS['À préparer'],
+          href: '/dashboard/videos?filter=a-preparer'
         },
         { 
-          title: 'Terminées', 
-          value: formatNumber(statusMap['Terminé']),
+          title: 'Upload', 
+          value: formatNumber(statusMap['Upload']),
           icon: <CircleCheck className="h-5 w-5" />,
-          color: COLORS['Terminé'],
-          href: '/dashboard/videos?filter=termine'
+          color: COLORS['Upload'],
+          href: '/dashboard/videos?filter=upload'
         },
         { 
           title: 'Catégories', 
@@ -377,18 +377,18 @@ export default function DashboardPage() {
           href: '/dashboard/videos'
         },
         { 
-          title: 'À monter', 
+          title: 'À préparer', 
           value: '0', 
           icon: <ClipboardList className="h-5 w-5" />,
-          color: COLORS['À monter'],
-          href: '/dashboard/videos?filter=a-monter'
+          color: COLORS['À préparer'],
+          href: '/dashboard/videos?filter=a-preparer'
         },
         { 
-          title: 'Terminées', 
+          title: 'Upload', 
           value: '0', 
           icon: <CircleCheck className="h-5 w-5" />,
-          color: COLORS['Terminé'],
-          href: '/dashboard/videos?filter=termine'
+          color: COLORS['Upload'],
+          href: '/dashboard/videos?filter=upload'
         },
         { 
           title: 'Catégories', 
@@ -557,7 +557,7 @@ export default function DashboardPage() {
             <QuickActionCard
               icon={<FilePieChart className="h-5 w-5" />}
               title="Vidéos en cours"
-              href="/dashboard/videos?filter=en-cours"
+              href="/dashboard/videos?filter=pretes"
             />
           </div>
           

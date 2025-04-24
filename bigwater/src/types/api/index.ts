@@ -36,7 +36,7 @@ export interface UserActivity {
 /**
  * Type pour les statuts de production
  */
-export type ProductionStatus = 'À monter' | 'En cours' | 'Terminé';
+export type ProductionStatus = 'À préparer' | 'Prêtes' | 'Upload';
 
 /**
  * Interface pour les données historiques
@@ -47,7 +47,7 @@ export interface HistoricalData {
   categories: number;
 } 
 
-export type VideoStatus = 'À monter' | 'En cours' | 'Terminé';
+export type VideoStatus = 'À préparer' | 'Prêtes' | 'Upload';
 
 export interface Profile {
   id: string;

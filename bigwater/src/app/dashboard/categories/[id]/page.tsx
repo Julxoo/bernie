@@ -62,9 +62,9 @@ type VideoData = Record<string, unknown>;
 // Filtres prédéfinis pour faciliter le filtrage rapide
 const PRESET_FILTERS = [
   { id: 'all', label: 'Toutes', filter: () => true },
-  { id: 'à-monter', label: 'À monter', filter: (video: Video) => video.production_status === 'À monter' },
-  { id: 'en-cours', label: 'En cours', filter: (video: Video) => video.production_status === 'En cours' },
-  { id: 'terminé', label: 'Terminées', filter: (video: Video) => video.production_status === 'Terminé' }
+  { id: 'a-preparer', label: 'À préparer', filter: (video: Video) => video.production_status === 'À préparer' },
+  { id: 'pretes', label: 'Prêtes', filter: (video: Video) => video.production_status === 'Prêtes' },
+  { id: 'upload', label: 'Upload', filter: (video: Video) => video.production_status === 'Upload' }
 ];
 
 // Options de tri

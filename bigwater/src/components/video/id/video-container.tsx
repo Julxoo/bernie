@@ -603,9 +603,9 @@ interface VideoContainerProps {
 
 // Les statuts possibles pour une vidéo
 const STATUSES = [
-  { value: 'À monter', label: 'À monter', color: 'bg-yellow-500/20 text-yellow-700 hover:bg-yellow-500/30', iconColor: 'text-yellow-500' },
-  { value: 'En cours', label: 'En cours', color: 'bg-amber-500/20 text-amber-700 hover:bg-amber-500/30', iconColor: 'text-amber-500' },
-  { value: 'Terminé', label: 'Terminé', color: 'bg-slate-500/20 text-slate-700 hover:bg-slate-500/30', iconColor: 'text-slate-500' }
+  { value: 'À préparer', label: 'À préparer', color: 'bg-yellow-500/20 text-yellow-700 hover:bg-yellow-500/30', iconColor: 'text-yellow-500' },
+  { value: 'Prêtes', label: 'Prêtes', color: 'bg-amber-500/20 text-amber-700 hover:bg-amber-500/30', iconColor: 'text-amber-500' },
+  { value: 'Upload', label: 'Upload', color: 'bg-slate-500/20 text-slate-700 hover:bg-slate-500/30', iconColor: 'text-slate-500' }
 ];
 
 export function VideoContainer({ 
@@ -667,11 +667,11 @@ export function VideoContainer({
   // Determine status color class
   const getStatusColorClass = (status: VideoStatus) => {
     switch(status) {
-      case 'À monter':
+      case 'À préparer':
         return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
-      case 'En cours':
+      case 'Prêtes':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'Terminé':
+      case 'Upload':
         return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
@@ -683,11 +683,11 @@ export function VideoContainer({
   // Get status icon
   const getStatusIcon = () => {
     switch(currentStatus) {
-      case 'À monter':
+      case 'À préparer':
         return <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />;
-      case 'En cours':
+      case 'Prêtes':
         return <AlertCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />;
-      case 'Terminé':
+      case 'Upload':
         return <CheckCircle2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />;
       default:
         return null;
@@ -711,7 +711,7 @@ export function VideoContainer({
         }
       }));
       
-      if (newStatus === 'Terminé') {
+      if (newStatus === 'Upload') {
         setShowCompletionOverlay(true);
       }
       
@@ -920,9 +920,9 @@ export function VideoContainer({
     }
   };
 
-  // Afficher l'overlay si la vidéo est déjà en statut "Terminé" lors de l'ouverture
+  // Afficher l'overlay si la vidéo est déjà en statut "Upload" lors de l'ouverture
   useEffect(() => {
-    if (currentStatus === 'Terminé') {
+    if (currentStatus === 'Upload') {
       // Petite temporisation pour laisser la page se charger d'abord
       const timer = setTimeout(() => {
         setShowCompletionOverlay(true);

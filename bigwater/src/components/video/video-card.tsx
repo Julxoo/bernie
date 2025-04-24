@@ -79,7 +79,7 @@ export function VideoCard({
   // Ajuster automatiquement la taille en fonction du mode mobile
   const effectiveSize = isMobile ? 'small' : size;
   
-  const videoStatus = video.status || video.production_status || 'À monter';
+  const videoStatus = video.status || video.production_status || 'À préparer';
   const linkPath = href || (video.id ? `/dashboard/videos/${video.id}` : '/dashboard/videos');
   
   // Formater l'identifiant selon le format standardisé #A-2
@@ -108,20 +108,20 @@ export function VideoCard({
   
   // Définition standard des couleurs et icônes de statut
   const statuses = {
-    'À monter': {
+    'À préparer': {
       color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/30',
       icon: <Clock className={`${isMobile ? 'h-3 w-3' : 'h-3 w-3'}`} aria-hidden="true" />,
-      ariaLabel: 'Statut: À monter'
+      ariaLabel: 'Statut: À préparer'
     },
-    'En cours': {
+    'Prêtes': {
       color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800/30',
       icon: <RotateCw className={`${isMobile ? 'h-3 w-3' : 'h-3 w-3'}`} aria-hidden="true" />,
-      ariaLabel: 'Statut: En cours'
+      ariaLabel: 'Statut: Prêtes'
     },
-    'Terminé': {
+    'Upload': {
       color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800/30',
       icon: <CheckCircle className={`${isMobile ? 'h-3 w-3' : 'h-3 w-3'}`} aria-hidden="true" />,
-      ariaLabel: 'Statut: Terminé'
+      ariaLabel: 'Statut: Upload'
     },
   };
 

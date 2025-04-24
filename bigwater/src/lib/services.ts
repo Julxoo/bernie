@@ -27,9 +27,9 @@ export const videoService = {
     // Calculer les vrais compteurs basés sur les vidéos associées
     const categoriesWithRealCounts = data.map((category) => {
       const videos = category.category_videos || [];
-      const pending_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'À monter').length;
-      const finished_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'Terminé').length;
-      const ready_to_publish_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'En cours').length;
+      const pending_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'À préparer').length;
+      const finished_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'Upload').length;
+      const ready_to_publish_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'Prêtes').length;
       
       return {
         ...category,
@@ -61,9 +61,9 @@ export const videoService = {
       // 2. Pour chaque catégorie, calculer et mettre à jour les compteurs
       const updates = categories.map(async (category) => {
         const videos = category.category_videos || [];
-        const pending_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'À monter').length;
-        const finished_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'Terminé').length;
-        const ready_to_publish_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'En cours').length;
+        const pending_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'À préparer').length;
+        const finished_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'Upload').length;
+        const ready_to_publish_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'Prêtes').length;
         
         // Mettre à jour la catégorie avec les compteurs calculés
         const { error: updateError } = await supabase
@@ -176,9 +176,9 @@ export const videoService = {
       if (videosError) throw videosError;
       
       // 2. Calculer les compteurs
-      const pending_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'À monter').length;
-      const finished_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'Terminé').length;
-      const ready_to_publish_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'En cours').length;
+      const pending_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'À préparer').length;
+      const finished_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'Upload').length;
+      const ready_to_publish_count = videos.filter((v: { production_status: VideoStatus }) => v.production_status === 'Prêtes').length;
       
       // 3. Mettre à jour la catégorie
       const { error: updateError } = await supabase
@@ -489,9 +489,9 @@ export const categoryService = {
     // Calculer les vrais compteurs basés sur les vidéos associées
     const categoriesWithRealCounts = data.map((category) => {
       const videos = category.category_videos || [];
-      const pending_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'À monter').length;
-      const finished_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'Terminé').length;
-      const ready_to_publish_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'En cours').length;
+      const pending_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'À préparer').length;
+      const finished_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'Upload').length;
+      const ready_to_publish_count = videos.filter((v: SimpleCategoryVideo) => v.production_status === 'Prêtes').length;
       
       return {
         ...category,

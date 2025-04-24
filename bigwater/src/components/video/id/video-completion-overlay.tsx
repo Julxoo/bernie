@@ -150,7 +150,7 @@ export function VideoCompletionOverlay({
                   <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
                 </div>
               </div>
-              <h2 className="text-xl font-bold">Vidéo terminée</h2>
+              <h2 className="text-xl font-bold">Vidéo Upload</h2>
               <p className="text-muted-foreground mt-1 text-sm">{video.title}</p>
             </div>
 
@@ -268,7 +268,7 @@ export function VideoCompletionOverlay({
                     <h3 className="font-medium text-lg">Objectif atteint</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       Cette vidéo fait partie des {Math.round(Math.random() * 20) + 10}% 
-                      de vidéos terminées dans cette catégorie
+                      de vidéos Upload dans cette catégorie
                     </p>
                   </div>
                   

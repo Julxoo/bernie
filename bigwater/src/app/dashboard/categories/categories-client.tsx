@@ -563,7 +563,7 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                                     <div className="flex flex-col items-center bg-muted/40 p-2 rounded">
                                       <Clock className="h-4 w-4 mb-1 text-orange-500" />
                                       <span className="text-sm font-medium">{category.pending_count || 0}</span>
-                                      <span className="text-xs text-muted-foreground">À monter</span>
+                                      <span className="text-xs text-muted-foreground">À préparer</span>
                                     </div>
                                     <div className="flex flex-col items-center bg-muted/40 p-2 rounded">
                                       <FileCheck className="h-4 w-4 mb-1 text-blue-500" />
@@ -573,7 +573,7 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                                     <div className="flex flex-col items-center bg-muted/40 p-2 rounded">
                                       <CheckCircle2 className="h-4 w-4 mb-1 text-green-500" />
                                       <span className="text-sm font-medium">{category.finished_count || 0}</span>
-                                      <span className="text-xs text-muted-foreground">Terminées</span>
+                                      <span className="text-xs text-muted-foreground">Upload</span>
                                     </div>
                                   </div>
                                   

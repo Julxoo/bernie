@@ -208,7 +208,7 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
       
       await videoService.createNewVideo(catId, {
         title: data.title,
-        production_status: "À monter" as VideoStatus,
+        production_status: "À préparer" as VideoStatus,
       });
 
       toast.success("Vidéo créée avec succès");
