@@ -12,6 +12,7 @@ import {
   Edit2,
   Check,
   X,
+  Plus,
 } from 'lucide-react';
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
@@ -421,6 +422,177 @@ export   const InlineEdit: React.FC<InlineEditProps> = ({
   );
 };
 
+// Composant d'édition pour les rushs multiples
+interface MultipleRushesProps {
+  rushLinks: string[];
+  onSave: (rushLinks: string[]) => void;
+  placeholder?: string;
+  className?: string;
+}
+
+export const MultipleRushes: React.FC<MultipleRushesProps> = ({
+  rushLinks = [],
+  onSave,
+  placeholder = 'Ajouter un nouveau lien de rush...',
+  className = '',
+}) => {
+  const [links, setLinks] = useState<string[]>(rushLinks || []);
+  const [isEditing, setIsEditing] = useState(false);
+  const [newLink, setNewLink] = useState('');
+  const [isHovered, setIsHovered] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Mettre à jour l'état local quand les props changent
+  useEffect(() => {
+    setLinks(rushLinks || []);
+  }, [rushLinks]);
+
+  const handleAddLink = () => {
+    if (newLink.trim()) {
+      const updatedLinks = [...links, newLink.trim()];
+      setLinks(updatedLinks);
+      onSave(updatedLinks);
+      setNewLink('');
+      
+      // Focus l'input après ajout pour faciliter l'ajout de plusieurs liens
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }
+  };
+
+  const handleRemoveLink = (indexToRemove: number) => {
+    const updatedLinks = links.filter((_, index) => index !== indexToRemove);
+    setLinks(updatedLinks);
+    onSave(updatedLinks);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleAddLink();
+    }
+  };
+
+  // Pour les liens déjà existants, formatter pour afficher des liens cliquables
+  const formatLink = (link: string) => {
+    try {
+      new URL(link);
+      return (
+        <a 
+          href={link} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-primary underline hover:text-primary/80 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 text-xs truncate max-w-xs"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {link.length > 45 ? `${link.substring(0, 45)}...` : link}
+        </a>
+      );
+    } catch {
+      return link;
+    }
+  };
+
+  return (
+    <div 
+      className={cn(
+        "group rounded transition-all min-h-[40px]",
+        links.length === 0 && !isEditing && "border border-dashed border-muted-foreground/30",
+        (isHovered || isEditing) && "bg-muted/40",
+        className
+      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {links.length > 0 && (
+        <div className="py-2">
+          <div className="space-y-2">
+            {links.map((link, index) => (
+              <div 
+                key={index} 
+                className="flex items-center justify-between gap-2 px-3 py-1.5 bg-muted/50 rounded-sm group/link"
+              >
+                <div className="flex-1 overflow-hidden">
+                  {formatLink(link)}
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 opacity-0 group-hover/link:opacity-100 transition-opacity"
+                  onClick={() => handleRemoveLink(index)}
+                  aria-label="Supprimer ce lien"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {isEditing ? (
+        <div className="p-2 space-y-2">
+          <div className="flex gap-2">
+            <Input
+              ref={inputRef}
+              type="text"
+              value={newLink}
+              onChange={(e) => setNewLink(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              className="text-xs"
+            />
+            <Button 
+              type="button" 
+              size="sm" 
+              variant="default"
+              onClick={handleAddLink}
+              className="shrink-0"
+            >
+              Ajouter
+            </Button>
+            <Button 
+              type="button" 
+              size="sm" 
+              variant="outline"
+              onClick={() => setIsEditing(false)}
+              className="shrink-0"
+            >
+              Fermer
+            </Button>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Appuyez sur Entrée pour ajouter rapidement
+          </div>
+        </div>
+      ) : (
+        <div 
+          className="flex items-center justify-center h-full text-muted-foreground text-sm py-2 px-3 cursor-pointer"
+          onClick={() => setIsEditing(true)}
+        >
+          {links.length === 0 ? (
+            <>
+              <Edit2 className="h-3.5 w-3.5 mr-2 opacity-70" />
+              <span>{placeholder}</span>
+            </>
+          ) : (
+            <Button 
+              type="button" 
+              size="sm" 
+              variant="outline"
+              className="w-full"
+            >
+              <Plus className="h-3.5 w-3.5 mr-2" />
+              Ajouter un nouveau lien
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Main VideoContainer Component
 interface VideoContainerProps {
   video: CategoryVideo & { video_details: VideoDetails };
@@ -468,7 +640,14 @@ export function VideoContainer({
   const [videoTitle, setVideoTitle] = useState(video.title);
   const [videoDescription, setVideoDescription] = useState(video.video_details?.description || '');
   const [videoInstructions, setVideoInstructions] = useState(video.video_details?.instructions_miniature || '');
-  const [videoRushLink, setVideoRushLink] = useState(video.video_details?.rush_link || '');
+  // Transformer le rush_link en array s'il ne l'est pas déjà
+  const [videoRushLinks, setVideoRushLinks] = useState<string[]>(
+    video.video_details?.rush_link 
+      ? (Array.isArray(video.video_details.rush_link) 
+        ? video.video_details.rush_link 
+        : [video.video_details.rush_link])
+      : []
+  );
   const [videoMiniatureLink, setVideoMiniatureLink] = useState(video.video_details?.miniature_link || '');
   const [videoLink, setVideoLink] = useState(video.video_details?.video_link || '');
   
@@ -651,7 +830,7 @@ export function VideoContainer({
       // Mise à jour de l'état local immédiatement pour l'UX
       switch (linkType) {
         case 'rush_link':
-          setVideoRushLink(newLink);
+          setVideoRushLinks(newLink.split(',').map(l => l.trim()));
           break;
         case 'video_link':
           setVideoLink(newLink);
@@ -682,7 +861,13 @@ export function VideoContainer({
       // Réinitialiser à la valeur précédente en cas d'erreur
       switch (linkType) {
         case 'rush_link':
-          setVideoRushLink(video.video_details?.rush_link || '');
+          setVideoRushLinks(
+            video.video_details?.rush_link 
+              ? (Array.isArray(video.video_details.rush_link) 
+                ? video.video_details.rush_link 
+                : [video.video_details.rush_link])
+              : []
+          );
           break;
         case 'video_link':
           setVideoLink(video.video_details?.video_link || '');
@@ -694,6 +879,43 @@ export function VideoContainer({
       
       toast.error("Erreur", {
         description: "Impossible de mettre à jour le lien. Veuillez réessayer."
+      });
+    }
+  };
+
+  // Gestionnaire pour mettre à jour les rush links
+  const handleRushLinksUpdate = async (newLinks: string[]) => {
+    try {
+      // Mise à jour de l'état local immédiatement pour l'UX
+      setVideoRushLinks(newLinks);
+      
+      // Mise à jour en base de données
+      await videoService.updateVideoLink(video.id, 'rush_link', newLinks);
+      
+      // Mettre à jour videoWithDetails après succès
+      setVideoWithDetails(prev => ({
+        ...prev,
+        video_details: {
+          ...prev.video_details,
+          rush_link: newLinks
+        }
+      }));
+      
+      toast.success("Liens rush mis à jour", {
+        description: "Les liens de rush ont été mis à jour avec succès."
+      });
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour des liens rush:', error);
+      // Réinitialiser à la valeur précédente en cas d'erreur
+      setVideoRushLinks(
+        video.video_details?.rush_link 
+          ? (Array.isArray(video.video_details.rush_link) 
+            ? video.video_details.rush_link 
+            : [video.video_details.rush_link])
+          : []
+      );
+      toast.error("Erreur", {
+        description: "Impossible de mettre à jour les liens rush. Veuillez réessayer."
       });
     }
   };
@@ -781,20 +1003,107 @@ export function VideoContainer({
             </div>
           </div>
         </Card>
-
-        {/* IA Description - To be implemented later */}
-        <Card className="bg-background shadow-sm">
-          <div className="p-3 sm:p-4">
-            <h3 className="text-sm text-muted-foreground font-medium mb-2">Générer une description</h3>
-            <Button variant="outline" size="sm" className="w-full" disabled>
-              <span>IA (Prochainement)</span>
-            </Button>
-          </div>
-        </Card>
       </div>
 
       {/* Main content grid - Responsive layout */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
+        {/* Mobile-only: Links section will appear first on mobile */}
+        <div className="md:hidden flex flex-col gap-4">
+          {/* Links section */}
+          <Card className="bg-background shadow-sm">
+            <div className="p-3 sm:p-4">
+              <h3 className="font-medium text-lg mb-3">Liens</h3>
+              <div className="space-y-4">
+                {/* Rush Links */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <FileVideo className="h-4 w-4 text-muted-foreground shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Liens des rushs</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <span className="text-sm font-medium">Liens des rushs</span>
+                  </div>
+                  
+                  <MultipleRushes
+                    rushLinks={videoRushLinks}
+                    onSave={handleRushLinksUpdate}
+                    placeholder="Ajouter un lien de rush..."
+                    className="flex-1"
+                  />
+                </div>
+
+                {/* Miniature Link */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Lien miniature</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <span className="text-sm font-medium sm:hidden">Lien miniature</span>
+                  </div>
+
+                  <div className="flex-1 flex items-center gap-2">
+                    <InlineEdit
+                      value={videoMiniatureLink}
+                      onSave={(newValue) => handleLinkUpdate('miniature_link', newValue)}
+                      placeholder="Ajouter un lien de miniature..."
+                      className="flex-1 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Video Link */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Video className="h-4 w-4 text-muted-foreground shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Lien vidéo</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <span className="text-sm font-medium sm:hidden">Lien vidéo</span>
+                  </div>
+
+                  <div className="flex-1 flex items-center gap-2">
+                    <InlineEdit
+                      value={videoLink}
+                      onSave={(newValue) => handleLinkUpdate('video_link', newValue)}
+                      placeholder="Ajouter un lien vidéo..."
+                      className="flex-1 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Mobile-only: Générer une description */}
+          <Card className="bg-background shadow-sm">
+            <div className="p-3 sm:p-4">
+              <h3 className="font-medium text-lg mb-3">Générer une description</h3>
+              <Button variant="outline" size="sm" className="w-full" disabled>
+                <span>IA (Prochainement)</span>
+              </Button>
+            </div>
+          </Card>
+        </div>
+
         {/* Description vidéo (7 cols on desktop, full width on mobile) */}
         <Card className="md:col-span-7 bg-background shadow-sm">
           <div className="p-3 sm:p-4 h-full flex flex-col">
@@ -822,8 +1131,8 @@ export function VideoContainer({
           </div>
         </Card>
 
-        {/* Right column (5 cols on desktop, full width on mobile) */}
-        <div className="md:col-span-5 flex flex-col gap-4 md:gap-6">
+        {/* Right column (5 cols on desktop, hidden on mobile since we moved it to the top) */}
+        <div className="hidden md:flex md:col-span-5 flex-col gap-4 md:gap-6">
           {/* Description miniature */}
           <Card className="bg-background shadow-sm flex-1">
             <div className="p-3 sm:p-4 h-full flex flex-col">
@@ -841,13 +1150,13 @@ export function VideoContainer({
             </div>
           </Card>
 
-          {/* Links section */}
+          {/* Links section - Desktop only */}
           <Card className="bg-background shadow-sm">
             <div className="p-3 sm:p-4">
               <h3 className="font-medium text-lg mb-3">Liens</h3>
               <div className="space-y-4">
-                {/* Rush Link */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                {/* Rush Links */}
+                <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <TooltipProvider>
                       <Tooltip>
@@ -855,21 +1164,19 @@ export function VideoContainer({
                           <FileVideo className="h-4 w-4 text-muted-foreground shrink-0" />
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Lien du rush</p>
+                          <p>Liens des rushs</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                    <span className="text-sm font-medium sm:hidden">Lien du rush</span>
+                    <span className="text-sm font-medium">Liens des rushs</span>
                   </div>
                   
-                  <div className="flex-1 flex items-center gap-2">
-                    <InlineEdit
-                      value={videoRushLink}
-                      onSave={(newValue) => handleLinkUpdate('rush_link', newValue)}
-                      placeholder="Ajouter un lien de rush..."
-                      className="flex-1 text-xs"
-                    />
-                  </div>
+                  <MultipleRushes
+                    rushLinks={videoRushLinks}
+                    onSave={handleRushLinksUpdate}
+                    placeholder="Ajouter un lien de rush..."
+                    className="flex-1"
+                  />
                 </div>
 
                 {/* Miniature Link */}

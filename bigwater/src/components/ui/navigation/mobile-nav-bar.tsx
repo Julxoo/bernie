@@ -45,25 +45,25 @@ export function MobileNavBar({ isAdmin = false }: MobileNavBarProps) {
       href: "/dashboard/dashboard",
       label: "Dashboard",
       icon: <Squares2X2Icon className="h-5 w-5" />,
-      activePattern: /^\/dashboard/
+      activePattern: /^\/dashboard\/dashboard/
     },
     {
       href: "/dashboard/videos",
       label: "Vidéos",
       icon: <VideoCameraIcon className="h-5 w-5" />,
-      activePattern: /^\/videos|^\/video\//
+      activePattern: /^\/dashboard\/videos|^\/dashboard\/video\//
     },
     {
       href: "/dashboard/categories",
       label: "Catégories",
       icon: <FolderIcon className="h-5 w-5" />, 
-      activePattern: /^\/categories|^\/category\//
+      activePattern: /^\/dashboard\/categories|^\/dashboard\/category\//
     },
     {
       href: "/dashboard/profile",
       label: "Profil",
       icon: <UserIcon className="h-5 w-5" />, 
-      activePattern: /^\/categories|^\/category\//
+      activePattern: /^\/dashboard\/profile/
     }
   ];
   
@@ -73,7 +73,7 @@ export function MobileNavBar({ isAdmin = false }: MobileNavBarProps) {
       href: "/dashboard/admin",
       label: "Admin",
       icon: <ShieldCheckIcon className="h-5 w-5" />,
-      activePattern: /^\/admin/
+      activePattern: /^\/dashboard\/admin/
     });
   }
 
@@ -81,7 +81,7 @@ export function MobileNavBar({ isAdmin = false }: MobileNavBarProps) {
     if (item.activePattern) {
       return item.activePattern.test(pathname);
     }
-    return pathname === item.href;
+    return pathname === item.href || pathname.startsWith(`${item.href}/`);
   };
 
   return (

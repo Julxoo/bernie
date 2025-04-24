@@ -402,7 +402,7 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                     <span className="flex items-center justify-center rounded-full w-5 h-5 sm:w-6 sm:h-6 bg-orange-100 text-orange-600 text-[10px] font-semibold">
                       {initialCategories.filter(c => (c.pending_count || 0) > 0).length}
                     </span>
-                    <span className="whitespace-nowrap truncate">À monter</span>
+                    <span className="whitespace-nowrap truncate">À préparer</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="in-progress" 
@@ -411,7 +411,7 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                     <span className="flex items-center justify-center rounded-full w-5 h-5 sm:w-6 sm:h-6 bg-blue-100 text-blue-600 text-[10px] font-semibold">
                       {initialCategories.filter(c => (c.ready_to_publish_count || 0) > 0).length}
                     </span>
-                    <span className="whitespace-nowrap truncate">En cours</span>
+                    <span className="whitespace-nowrap truncate">Prêtes</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="ready" 
@@ -420,7 +420,7 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                     <span className="flex items-center justify-center rounded-full w-5 h-5 sm:w-6 sm:h-6 bg-green-100 text-green-600 text-[10px] font-semibold">
                       {initialCategories.filter(c => (c.finished_count || 0) > 0).length}
                     </span>
-                    <span className="whitespace-nowrap truncate">Prêtes</span>
+                    <span className="whitespace-nowrap truncate">Upload</span>
                   </TabsTrigger>
                 </TabsList>
               </div>

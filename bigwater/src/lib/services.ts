@@ -311,22 +311,46 @@ export const videoService = {
   },
 
   // Mettre à jour un lien (rush, vidéo ou miniature)
-  async updateVideoLink(videoId: number, linkType: 'rush_link' | 'video_link' | 'miniature_link', url: string) {
-    // Correspondance entre le type de lien utilisé dans l'UI et la colonne réelle
-    const columnMap: Record<typeof linkType, string> = {
-      rush_link: 'link_rush',
-      video_link: 'link_video',
-      miniature_link: 'link_miniature'
-    } as const;
+  async updateVideoLink(videoId: number, linkType: 'rush_link' | 'video_link' | 'miniature_link', url: string | string[]) {
+    // Si c'est rush_link, on traite différemment car c'est un tableau
+    if (linkType === 'rush_link') {
+      // Récupérer les détails actuels de la vidéo pour vérifier si l'enregistrement existe
+      const { error: getError } = await supabase
+        .from('video_details')
+        .select('id')
+        .eq('category_video_id', videoId)
+        .single();
+      
+      if (getError) throw getError;
+      
+      // Mettre à jour directement dans video_details
+      const { error: updateError } = await supabase
+        .from('video_details')
+        .update({ 
+          rush_link: Array.isArray(url) ? url : [url], 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('category_video_id', videoId);
+      
+      if (updateError) throw updateError;
+    } else {
+      // Pour les autres types, on procède comme avant
+      // Correspondance entre le type de lien utilisé dans l'UI et la colonne réelle
+      const columnMap: Record<'video_link' | 'miniature_link' | 'rush_link', string> = {
+        rush_link: 'link_rush', // non utilisé mais gardé pour la cohérence
+        video_link: 'link_video',
+        miniature_link: 'link_miniature'
+      } as const;
 
-    const columnName = columnMap[linkType];
+      const columnName = columnMap[linkType];
 
-    const { error } = await supabase
-      .from('category_videos')
-      .update({ [columnName]: url, updated_at: new Date().toISOString() })
-      .eq('id', videoId);
+      const { error } = await supabase
+        .from('category_videos')
+        .update({ [columnName]: url, updated_at: new Date().toISOString() })
+        .eq('id', videoId);
 
-    if (error) throw error;
+      if (error) throw error;
+    }
 
     return { success: true };
   },
@@ -351,7 +375,7 @@ export const videoService = {
       title: string;
       production_status: VideoStatus;
       description?: string;
-      rush_link?: string;
+      rush_link?: string | string[];
       video_link?: string;
       miniature_link?: string;
       instructions_miniature?: string;
@@ -385,6 +409,11 @@ export const videoService = {
 
     if (videoError) throw videoError;
 
+    // Préparer rush_link comme un tableau
+    const rushLink = videoData.rush_link 
+      ? (Array.isArray(videoData.rush_link) ? videoData.rush_link : [videoData.rush_link]) 
+      : null;
+
     // 3. Insérer les détails de la vidéo
     const { data: videoDetails, error: detailsError } = await supabase
       .from("video_details")
@@ -393,7 +422,7 @@ export const videoService = {
         title: videoData.title,
         description: videoData.description || null,
         production_status: videoData.production_status,
-        rush_link: videoData.rush_link || null,
+        rush_link: rushLink,
         video_link: videoData.video_link || null,
         miniature_link: videoData.miniature_link || null,
         instructions_miniature: videoData.instructions_miniature || null,

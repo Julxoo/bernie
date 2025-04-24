@@ -10,6 +10,7 @@ import {
   Clock,
   Download,
   ExternalLink,
+  FileVideo,
   Play,
   Share2,
   Star,
@@ -23,6 +24,14 @@ import { Card } from '@/components/ui/layout/card';
 import { Separator } from '@/components/ui/layout/separator';
 import { cn } from '@/lib/utils';
 import { CategoryVideo, VideoDetails, VideoCategory } from '@/types/api';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 
 interface VideoCompletionOverlayProps {
   video: CategoryVideo & { video_details: VideoDetails };
@@ -200,13 +209,45 @@ export function VideoCompletionOverlay({
                         </a>
                       </Button>
                     )}
-                    {video.video_details?.rush_link && (
-                      <Button className="flex items-center gap-2 w-full" variant="outline" asChild>
-                        <a href={video.video_details.rush_link} target="_blank" rel="noopener noreferrer">
-                          <Download className="h-4 w-4" />
-                          Télécharger le rush
-                        </a>
-                      </Button>
+                    {video.video_details?.rush_link && Array.isArray(video.video_details.rush_link) && video.video_details.rush_link.length > 0 && (
+                      <>
+                        {video.video_details.rush_link.length === 1 ? (
+                          // Si un seul lien, afficher un bouton simple
+                          <Button className="flex items-center gap-2 w-full" variant="outline" asChild>
+                            <a href={video.video_details.rush_link[0]} target="_blank" rel="noopener noreferrer">
+                              <Download className="h-4 w-4" />
+                              Télécharger le rush
+                            </a>
+                          </Button>
+                        ) : (
+                          // Si plusieurs liens, afficher un dropdown
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button className="flex items-center gap-2 w-full" variant="outline">
+                                <Download className="h-4 w-4" />
+                                Télécharger les rushs ({video.video_details.rush_link.length})
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-56">
+                              <DropdownMenuLabel>Liens des rushs</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              {video.video_details.rush_link.map((link, index) => (
+                                <DropdownMenuItem key={index} asChild>
+                                  <a 
+                                    href={link} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <FileVideo className="h-4 w-4" />
+                                    Rush #{index + 1}
+                                  </a>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </>
                     )}
                     <Button className="flex items-center gap-2 w-full" variant="outline">
                       <Share2 className="h-4 w-4" />

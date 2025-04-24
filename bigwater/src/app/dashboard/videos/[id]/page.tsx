@@ -79,7 +79,8 @@ export default async function VideoDetailPage({
         video_link: details.video_link ?? (cat as CategoryVideo & { link_video?: string | null }).link_video ?? null,
         miniature_link: details.miniature_link ?? (cat as CategoryVideo & { link_miniature?: string | null }).link_miniature ?? null,
         created_at: details.created_at ?? cat.created_at,
-        updated_at: details.updated_at ?? cat.updated_at
+        updated_at: details.updated_at ?? cat.updated_at,
+        edit_notes: details.edit_notes ?? null
       } as VideoDetails;
 
       video = videoData as CategoryVideo & { video_details: VideoDetails };
@@ -107,7 +108,8 @@ export default async function VideoDetailPage({
         miniature_link: null,
         instructions_miniature: null,
         created_at: video.created_at,
-        updated_at: video.updated_at
+        updated_at: video.updated_at,
+        edit_notes: null
       };
     }
 
