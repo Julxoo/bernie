@@ -2,10 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/layout/card";
@@ -18,6 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/inputs/input";
+import { Textarea } from "@/components/ui/inputs/textarea";
 import {
   Select,
   SelectContent,
@@ -32,6 +34,8 @@ import { createClient } from "@/services/supabase/client";
 const videoFormSchema = z.object({
   title: z.string().min(1, "Le titre est requis"),
   category_id: z.string().min(1, "La catégorie est requise"),
+  instructions_miniature: z.string().optional(),
+  rush_links: z.array(z.string()).optional(),
 });
 
 type VideoFormValues = z.infer<typeof videoFormSchema>;
@@ -54,12 +58,19 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
   const [, setNextIdentifier] = useState<number | null>(null);
   const [previewIdentifier, setPreviewIdentifier] = useState<string>("--");
   const [isLoading, setIsLoading] = useState(true);
+  
+  // État pour la gestion des rush links
+  const [rushLinks, setRushLinks] = useState<string[]>([]);
+  const [newRushLink, setNewRushLink] = useState("");
+  const rushLinkInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<VideoFormValues>({
     resolver: zodResolver(videoFormSchema),
     defaultValues: {
       title: "",
       category_id: categoryId ? String(categoryId) : "",
+      instructions_miniature: "",
+      rush_links: [],
     },
   });
 
@@ -201,6 +212,34 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
     }
   };
 
+  // Gestion des rush links
+  const addRushLink = () => {
+    if (newRushLink.trim()) {
+      const updatedLinks = [...rushLinks, newRushLink.trim()];
+      setRushLinks(updatedLinks);
+      form.setValue("rush_links", updatedLinks);
+      setNewRushLink("");
+      
+      // Focus l'input pour faciliter l'ajout de plusieurs liens
+      if (rushLinkInputRef.current) {
+        rushLinkInputRef.current.focus();
+      }
+    }
+  };
+
+  const removeRushLink = (indexToRemove: number) => {
+    const updatedLinks = rushLinks.filter((_, index) => index !== indexToRemove);
+    setRushLinks(updatedLinks);
+    form.setValue("rush_links", updatedLinks);
+  };
+
+  const handleRushLinkKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      addRushLink();
+    }
+  };
+
   async function onSubmit(data: VideoFormValues) {
     setIsSubmitting(true);
     try {
@@ -209,6 +248,8 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
       await videoService.createNewVideo(catId, {
         title: data.title,
         production_status: "À préparer" as VideoStatus,
+        instructions_miniature: data.instructions_miniature || undefined,
+        rush_link: data.rush_links && data.rush_links.length > 0 ? data.rush_links : undefined,
       });
 
       toast.success("Vidéo créée avec succès");
@@ -269,6 +310,88 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
               <FormControl>
                 <Input placeholder="Titre de la vidéo" {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Instructions miniatures */}
+        <FormField
+          control={form.control}
+          name="instructions_miniature"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Instructions miniatures</FormLabel>
+              <FormControl>
+                <Textarea 
+                  placeholder="Instructions pour la création de miniature..." 
+                  className="resize-y min-h-[80px]"
+                  {...field} 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Rush Links */}
+        <FormField
+          control={form.control}
+          name="rush_links"
+          render={() => (
+            <FormItem>
+              <FormLabel>Liens des rushs</FormLabel>
+              <div className="space-y-2">
+                {rushLinks.length > 0 && (
+                  <div className="space-y-2">
+                    {rushLinks.map((link, index) => (
+                      <div 
+                        key={index} 
+                        className="flex items-center justify-between gap-2 px-3 py-1.5 bg-muted/50 rounded-sm group"
+                      >
+                        <div className="flex-1 overflow-hidden text-xs truncate">
+                          {link}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0 opacity-50 hover:opacity-100"
+                          onClick={() => removeRushLink(index)}
+                          type="button"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <Input
+                    ref={rushLinkInputRef}
+                    type="text"
+                    value={newRushLink}
+                    onChange={(e) => setNewRushLink(e.target.value)}
+                    onKeyDown={handleRushLinkKeyDown}
+                    placeholder="Ajouter un lien de rush..."
+                    className="text-xs"
+                  />
+                  <Button 
+                    type="button" 
+                    size="sm" 
+                    variant="outline"
+                    onClick={addRushLink}
+                    className="shrink-0"
+                    disabled={!newRushLink.trim()}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Ajouter
+                  </Button>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Appuyez sur Entrée pour ajouter rapidement
+                </div>
+              </div>
               <FormMessage />
             </FormItem>
           )}
