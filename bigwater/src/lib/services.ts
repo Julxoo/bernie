@@ -323,11 +323,14 @@ export const videoService = {
       
       if (getError) throw getError;
       
+      // Convertir le tableau de liens en un seul bloc de texte avec des sauts de ligne
+      const rushLinkText = Array.isArray(url) ? url.join('\n') : url;
+      
       // Mettre à jour directement dans video_details
       const { error: updateError } = await supabase
         .from('video_details')
         .update({ 
-          rush_link: Array.isArray(url) ? url : [url], 
+          rush_link: rushLinkText, 
           updated_at: new Date().toISOString() 
         })
         .eq('category_video_id', videoId);
@@ -409,9 +412,11 @@ export const videoService = {
 
     if (videoError) throw videoError;
 
-    // Préparer rush_link comme un tableau
+    // Préparer rush_link comme un bloc de texte avec sauts de ligne
     const rushLink = videoData.rush_link 
-      ? (Array.isArray(videoData.rush_link) ? videoData.rush_link : [videoData.rush_link]) 
+      ? (Array.isArray(videoData.rush_link) 
+          ? videoData.rush_link.join('\n') 
+          : videoData.rush_link) 
       : null;
 
     // 3. Insérer les détails de la vidéo

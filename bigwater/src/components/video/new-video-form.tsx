@@ -2,11 +2,10 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/layout/card";
@@ -60,9 +59,7 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
   const [isLoading, setIsLoading] = useState(true);
   
   // État pour la gestion des rush links
-  const [rushLinks, setRushLinks] = useState<string[]>([]);
-  const [newRushLink, setNewRushLink] = useState("");
-  const rushLinkInputRef = useRef<HTMLInputElement>(null);
+  const [rushLinksText, setRushLinksText] = useState('');
 
   const form = useForm<VideoFormValues>({
     resolver: zodResolver(videoFormSchema),
@@ -213,31 +210,16 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
   };
 
   // Gestion des rush links
-  const addRushLink = () => {
-    if (newRushLink.trim()) {
-      const updatedLinks = [...rushLinks, newRushLink.trim()];
-      setRushLinks(updatedLinks);
-      form.setValue("rush_links", updatedLinks);
-      setNewRushLink("");
-      
-      // Focus l'input pour faciliter l'ajout de plusieurs liens
-      if (rushLinkInputRef.current) {
-        rushLinkInputRef.current.focus();
-      }
-    }
-  };
-
-  const removeRushLink = (indexToRemove: number) => {
-    const updatedLinks = rushLinks.filter((_, index) => index !== indexToRemove);
-    setRushLinks(updatedLinks);
-    form.setValue("rush_links", updatedLinks);
-  };
-
-  const handleRushLinkKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      addRushLink();
-    }
+  const handleRushLinksChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setRushLinksText(e.target.value);
+    
+    // Mettre à jour le tableau de liens pour la soumission du formulaire
+    const links = e.target.value
+      .split('\n')
+      .map(link => link.trim())
+      .filter(link => link !== '');
+    
+    form.setValue("rush_links", links);
   };
 
   async function onSubmit(data: VideoFormValues) {
@@ -267,28 +249,32 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 md:space-y-5 w-full py-1 md:py-2">
         {/* Sélection de la catégorie - uniquement affiché si categoryId n'est pas fourni */}
         {!categoryId && (
           <FormField
             control={form.control}
             name="category_id"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>Catégorie</FormLabel>
+              <FormItem className="w-full">
+                <FormLabel className="text-base font-medium">Catégorie</FormLabel>
                 <Select 
                   onValueChange={handleCategoryChange} 
                   defaultValue={field.value}
                   disabled={isLoading}
                 >
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full min-h-[44px] text-base">
                       <SelectValue placeholder="Sélectionner une catégorie" />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
+                  <SelectContent className="max-h-[40vh]">
                     {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id.toString()}>
+                      <SelectItem 
+                        key={category.id} 
+                        value={category.id.toString()}
+                        className="text-base py-2.5"
+                      >
                         {category.title}
                       </SelectItem>
                     ))}
@@ -305,10 +291,14 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
           control={form.control}
           name="title"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>Titre</FormLabel>
+            <FormItem className="w-full">
+              <FormLabel className="text-base font-medium">Titre</FormLabel>
               <FormControl>
-                <Input placeholder="Titre de la vidéo" {...field} />
+                <Input 
+                  placeholder="Titre de la vidéo" 
+                  {...field} 
+                  className="w-full min-h-[44px] text-base"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -320,12 +310,12 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
           control={form.control}
           name="instructions_miniature"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>Instructions miniatures</FormLabel>
+            <FormItem className="w-full">
+              <FormLabel className="text-base font-medium">Instructions miniatures</FormLabel>
               <FormControl>
                 <Textarea 
                   placeholder="Instructions pour la création de miniature..." 
-                  className="resize-y min-h-[80px]"
+                  className="resize-y min-h-[80px] w-full text-base"
                   {...field} 
                 />
               </FormControl>
@@ -339,66 +329,26 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
           control={form.control}
           name="rush_links"
           render={() => (
-            <FormItem>
-              <FormLabel>Liens des rushs</FormLabel>
-              <div className="space-y-2">
-                {rushLinks.length > 0 && (
-                  <div className="space-y-2">
-                    {rushLinks.map((link, index) => (
-                      <div 
-                        key={index} 
-                        className="flex items-center justify-between gap-2 px-3 py-1.5 bg-muted/50 rounded-sm group"
-                      >
-                        <div className="flex-1 overflow-hidden text-xs truncate">
-                          {link}
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0 opacity-50 hover:opacity-100"
-                          onClick={() => removeRushLink(index)}
-                          type="button"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                <div className="flex gap-2">
-                  <Input
-                    ref={rushLinkInputRef}
-                    type="text"
-                    value={newRushLink}
-                    onChange={(e) => setNewRushLink(e.target.value)}
-                    onKeyDown={handleRushLinkKeyDown}
-                    placeholder="Ajouter un lien de rush..."
-                    className="text-xs"
-                  />
-                  <Button 
-                    type="button" 
-                    size="sm" 
-                    variant="outline"
-                    onClick={addRushLink}
-                    className="shrink-0"
-                    disabled={!newRushLink.trim()}
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" />
-                    Ajouter
-                  </Button>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Appuyez sur Entrée pour ajouter rapidement
-                </div>
-              </div>
+            <FormItem className="w-full">
+              <FormLabel className="text-base font-medium">Liens des rushs</FormLabel>
+              <FormControl>
+                <Textarea 
+                  placeholder="Ajoutez les liens de rushs..." 
+                  className="resize-y min-h-[120px] w-full text-base"
+                  value={rushLinksText}
+                  onChange={handleRushLinksChange}
+                />
+              </FormControl>
               <FormMessage />
+              <p className="text-xs text-muted-foreground mt-1">
+                Saisissez un lien par ligne. Les liens vides seront ignorés.
+              </p>
             </FormItem>
           )}
         />
 
         {/* Prévisualisation de l'identifiant */}
-        <Card className="p-4 bg-muted/50">
+        <Card className="p-4 bg-muted/50 w-full my-2">
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-1">Identifiant de la vidéo</p>
             <p className="text-xl font-mono font-bold">{previewIdentifier}</p>
@@ -408,7 +358,11 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
           </div>
         </Card>
 
-        <Button type="submit" disabled={isSubmitting || isLoading} className="w-full">
+        <Button 
+          type="submit" 
+          disabled={isSubmitting || isLoading} 
+          className="w-full min-h-[48px] mt-4 text-base"
+        >
           {isSubmitting ? "Création en cours..." : "Créer la vidéo"}
         </Button>
       </form>

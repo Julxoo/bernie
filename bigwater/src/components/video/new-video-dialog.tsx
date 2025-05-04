@@ -47,17 +47,19 @@ export function NewVideoDialog({
           {buttonSize !== "icon" && "Nouvelle vidéo"}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[800px]">
+      <DialogContent className="sm:max-w-[800px] max-h-[85vh] w-[95vw] sm:w-auto overflow-y-auto p-3 sm:p-6">
         <DialogHeader>
-          <DialogTitle>Ajouter une nouvelle vidéo</DialogTitle>
+          <DialogTitle className="text-xl">Ajouter une nouvelle vidéo</DialogTitle>
           <DialogDescription>
             Créer une nouvelle vidéo dans la catégorie &quot;{categoryTitle}&quot;
           </DialogDescription>
         </DialogHeader>
-        <NewVideoForm 
-          categoryId={categoryId} 
-          onSuccess={() => setOpen(false)} 
-        />
+        <div className="pb-2">
+          <NewVideoForm 
+            categoryId={categoryId} 
+            onSuccess={() => setOpen(false)} 
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );

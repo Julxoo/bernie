@@ -12,7 +12,6 @@ import {
   Edit2,
   Check,
   X,
-  Plus,
 } from 'lucide-react';
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
@@ -438,59 +437,37 @@ export const MultipleRushes: React.FC<MultipleRushesProps> = ({
 }) => {
   const [links, setLinks] = useState<string[]>(rushLinks || []);
   const [isEditing, setIsEditing] = useState(false);
-  const [newLink, setNewLink] = useState('');
-  const [isHovered, setIsHovered] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [linksText, setLinksText] = useState(rushLinks.join('\n'));
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Mettre à jour l'état local quand les props changent
   useEffect(() => {
     setLinks(rushLinks || []);
+    setLinksText(rushLinks.join('\n'));
   }, [rushLinks]);
 
-  const handleAddLink = () => {
-    if (newLink.trim()) {
-      const updatedLinks = [...links, newLink.trim()];
-      setLinks(updatedLinks);
-      onSave(updatedLinks);
-      setNewLink('');
+  const handleSave = () => {
+    if (linksText.trim()) {
+      const newLinks = linksText
+        .split('\n')
+        .map(link => link.trim())
+        .filter(link => link !== '');
       
-      // Focus l'input après ajout pour faciliter l'ajout de plusieurs liens
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
+      setLinks(newLinks);
+      onSave(newLinks);
+      setIsEditing(false);
     }
-  };
-
-  const handleRemoveLink = (indexToRemove: number) => {
-    const updatedLinks = links.filter((_, index) => index !== indexToRemove);
-    setLinks(updatedLinks);
-    onSave(updatedLinks);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      handleAddLink();
+      handleSave();
     }
-  };
-
-  // Pour les liens déjà existants, formatter pour afficher des liens cliquables
-  const formatLink = (link: string) => {
-    try {
-      new URL(link);
-      return (
-        <a 
-          href={link} 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="text-primary underline hover:text-primary/80 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 text-xs truncate max-w-xs"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {link.length > 45 ? `${link.substring(0, 45)}...` : link}
-        </a>
-      );
-    } catch {
-      return link;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setLinksText(links.join('\n'));
+      setIsEditing(false);
     }
   };
 
@@ -499,93 +476,89 @@ export const MultipleRushes: React.FC<MultipleRushesProps> = ({
       className={cn(
         "group rounded transition-all min-h-[40px]",
         links.length === 0 && !isEditing && "border border-dashed border-muted-foreground/30",
-        (isHovered || isEditing) && "bg-muted/40",
         className
       )}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
-      {links.length > 0 && (
-        <div className="py-2">
-          <div className="space-y-2">
-            {links.map((link, index) => (
-              <div 
-                key={index} 
-                className="flex items-center justify-between gap-2 px-3 py-1.5 bg-muted/50 rounded-sm group/link"
-              >
-                <div className="flex-1 overflow-hidden">
-                  {formatLink(link)}
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 w-6 p-0 opacity-0 group-hover/link:opacity-100 transition-opacity"
-                  onClick={() => handleRemoveLink(index)}
-                  aria-label="Supprimer ce lien"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      
       {isEditing ? (
-        <div className="p-2 space-y-2">
-          <div className="flex gap-2">
-            <Input
-              ref={inputRef}
-              type="text"
-              value={newLink}
-              onChange={(e) => setNewLink(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              className="text-xs"
-            />
-            <Button 
-              type="button" 
-              size="sm" 
+        <div className="space-y-2">
+          <Textarea
+            ref={textareaRef}
+            value={linksText}
+            onChange={(e) => setLinksText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="resize-y min-h-[120px]"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
               variant="default"
-              onClick={handleAddLink}
-              className="shrink-0"
+              onClick={handleSave}
+              className="h-8 flex-grow sm:flex-grow-0"
             >
-              Ajouter
+              <Check className="h-4 w-4 mr-1" />
+              <span>Enregistrer</span>
             </Button>
-            <Button 
-              type="button" 
-              size="sm" 
+            <Button
+              type="button"
+              size="sm"
               variant="outline"
-              onClick={() => setIsEditing(false)}
-              className="shrink-0"
+              onClick={() => {
+                setLinksText(links.join('\n'));
+                setIsEditing(false);
+              }}
+              className="h-8 flex-grow sm:flex-grow-0"
             >
-              Fermer
+              <X className="h-4 w-4 mr-1" />
+              <span>Annuler</span>
             </Button>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Appuyez sur Entrée pour ajouter rapidement
+            <div className="w-full mt-1 text-xs text-muted-foreground sm:w-auto sm:ml-auto sm:mt-0">
+              <span className="hidden sm:inline">
+                <kbd className="rounded bg-muted px-1 py-0.5">Ctrl</kbd>
+                <span className="mx-1">+</span>
+                <kbd className="rounded bg-muted px-1 py-0.5">Entrée</kbd>
+                <span className="ml-1">pour enregistrer</span>
+              </span>
+            </div>
           </div>
         </div>
       ) : (
         <div 
-          className="flex items-center justify-center h-full text-muted-foreground text-sm py-2 px-3 cursor-pointer"
-          onClick={() => setIsEditing(true)}
+          className="cursor-pointer"
+          onClick={() => {
+            setIsEditing(true);
+            setTimeout(() => textareaRef.current?.focus(), 0);
+          }}
         >
-          {links.length === 0 ? (
-            <>
+          {links.length > 0 ? (
+            <div className="py-1.5 px-3 whitespace-pre-wrap break-words">
+              {links.map((link, index) => {
+                try {
+                  new URL(link);
+                  return (
+                    <div key={index} className="text-primary hover:underline">
+                      <a
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 text-xs"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {link}
+                      </a>
+                    </div>
+                  );
+                } catch {
+                  return <div key={index} className="text-xs">{link}</div>;
+                }
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm py-2 px-3">
               <Edit2 className="h-3.5 w-3.5 mr-2 opacity-70" />
               <span>{placeholder}</span>
-            </>
-          ) : (
-            <Button 
-              type="button" 
-              size="sm" 
-              variant="outline"
-              className="w-full"
-            >
-              <Plus className="h-3.5 w-3.5 mr-2" />
-              Ajouter un nouveau lien
-            </Button>
+            </div>
           )}
         </div>
       )}
@@ -640,12 +613,10 @@ export function VideoContainer({
   const [videoTitle, setVideoTitle] = useState(video.title);
   const [videoDescription, setVideoDescription] = useState(video.video_details?.description || '');
   const [videoInstructions, setVideoInstructions] = useState(video.video_details?.instructions_miniature || '');
-  // Transformer le rush_link en array s'il ne l'est pas déjà
+  // Transformer le rush_link (string) en array pour la manipulation UI
   const [videoRushLinks, setVideoRushLinks] = useState<string[]>(
     video.video_details?.rush_link 
-      ? (Array.isArray(video.video_details.rush_link) 
-        ? video.video_details.rush_link 
-        : [video.video_details.rush_link])
+      ? video.video_details.rush_link.split('\n').filter(link => link.trim() !== '')
       : []
   );
   const [videoMiniatureLink, setVideoMiniatureLink] = useState(video.video_details?.miniature_link || '');
@@ -830,6 +801,7 @@ export function VideoContainer({
       // Mise à jour de l'état local immédiatement pour l'UX
       switch (linkType) {
         case 'rush_link':
+          // Pour rush_link, on divise la chaîne et on met à jour l'état d'array
           setVideoRushLinks(newLink.split(',').map(l => l.trim()));
           break;
         case 'video_link':
@@ -863,9 +835,7 @@ export function VideoContainer({
         case 'rush_link':
           setVideoRushLinks(
             video.video_details?.rush_link 
-              ? (Array.isArray(video.video_details.rush_link) 
-                ? video.video_details.rush_link 
-                : [video.video_details.rush_link])
+              ? video.video_details.rush_link.split('\n').filter(link => link.trim() !== '')
               : []
           );
           break;
@@ -893,11 +863,13 @@ export function VideoContainer({
       await videoService.updateVideoLink(video.id, 'rush_link', newLinks);
       
       // Mettre à jour videoWithDetails après succès
+      // Conversion de l'array en string avec sauts de ligne pour correspondre au type
+      const rushLinksString = newLinks.join('\n');
       setVideoWithDetails(prev => ({
         ...prev,
         video_details: {
           ...prev.video_details,
-          rush_link: newLinks
+          rush_link: rushLinksString
         }
       }));
       
@@ -909,9 +881,7 @@ export function VideoContainer({
       // Réinitialiser à la valeur précédente en cas d'erreur
       setVideoRushLinks(
         video.video_details?.rush_link 
-          ? (Array.isArray(video.video_details.rush_link) 
-            ? video.video_details.rush_link 
-            : [video.video_details.rush_link])
+          ? video.video_details.rush_link.split('\n').filter(link => link.trim() !== '')
           : []
       );
       toast.error("Erreur", {

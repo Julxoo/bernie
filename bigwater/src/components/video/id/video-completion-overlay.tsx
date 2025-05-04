@@ -8,7 +8,6 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  Download,
   ExternalLink,
   FileVideo,
   Play,
@@ -209,32 +208,30 @@ export function VideoCompletionOverlay({
                         </a>
                       </Button>
                     )}
-                    {video.video_details?.rush_link && Array.isArray(video.video_details.rush_link) && video.video_details.rush_link.length > 0 && (
+                    {video.video_details?.rush_link && video.video_details.rush_link.trim() !== '' && (
                       <>
-                        {video.video_details.rush_link.length === 1 ? (
-                          // Si un seul lien, afficher un bouton simple
+                        {video.video_details.rush_link.split('\n').filter(link => link.trim() !== '').length === 1 ? (
                           <Button className="flex items-center gap-2 w-full" variant="outline" asChild>
-                            <a href={video.video_details.rush_link[0]} target="_blank" rel="noopener noreferrer">
-                              <Download className="h-4 w-4" />
-                              Télécharger le rush
+                            <a href={video.video_details.rush_link.trim()} target="_blank" rel="noopener noreferrer">
+                              <FileVideo className="h-4 w-4" />
+                              Voir le rush
                             </a>
                           </Button>
                         ) : (
-                          // Si plusieurs liens, afficher un dropdown
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button className="flex items-center gap-2 w-full" variant="outline">
-                                <Download className="h-4 w-4" />
-                                Télécharger les rushs ({video.video_details.rush_link.length})
+                                <FileVideo className="h-4 w-4" />
+                                Voir les rushs ({video.video_details.rush_link.split('\n').filter(link => link.trim() !== '').length})
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent className="w-56">
                               <DropdownMenuLabel>Liens des rushs</DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              {video.video_details.rush_link.map((link, index) => (
+                              {video.video_details.rush_link.split('\n').filter(link => link.trim() !== '').map((link, index) => (
                                 <DropdownMenuItem key={index} asChild>
                                   <a 
-                                    href={link} 
+                                    href={link.trim()} 
                                     target="_blank" 
                                     rel="noopener noreferrer"
                                     className="flex items-center gap-2 cursor-pointer"
