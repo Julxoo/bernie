@@ -228,15 +228,35 @@ export   const InlineEdit: React.FC<InlineEditProps> = ({
   const formatContent = (content: string) => {
     if (isUrl(content)) {
       return (
-        <a 
-          href={content} 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="text-primary underline hover:text-primary/80 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-          onClick={(e) => e.stopPropagation()}
-        >
-          Cliquez ici pour voir le lien
-        </a>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center flex-wrap gap-2">
+            <button 
+              type="button"
+              className="inline-flex items-center text-xs font-medium text-primary rounded px-2 py-1 transition-colors border border-primary/20 hover:border-primary/40 bg-transparent touch-manipulation"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(content, '_blank', 'noopener,noreferrer');
+              }}
+            >
+              <span>Voir le lien</span>
+            </button>
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-primary transition-colors px-1 py-0.5 touch-manipulation"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!disabled) {
+                  setIsEditing(true);
+                }
+              }}
+            >
+              Modifier
+            </button>
+          </div>
+          <div className="text-xs text-muted-foreground truncate pr-2 opacity-75" title={content}>
+            {content.length > 40 ? content.substring(0, 40) + '...' : content}
+          </div>
+        </div>
       );
     }
     return content;
@@ -327,9 +347,7 @@ export   const InlineEdit: React.FC<InlineEditProps> = ({
     );
   }
 
-  // Calculer le style d'affichage
   const hasContent = value && value.trim().length > 0;
-  const contentIsUrl = hasContent && isUrl(value);
   
   return (
     <div
@@ -410,13 +428,6 @@ export   const InlineEdit: React.FC<InlineEditProps> = ({
           <Edit2 className="h-3.5 w-3.5" />
         </Button>
       </div>
-      
-      {/* Indicateur supplémentaire pour les liens */}
-      {contentIsUrl && (
-        <div className="absolute top-0 left-0 bg-primary/10 text-primary text-xs px-1.5 py-0.5 rounded-tl rounded-br">
-          URL
-        </div>
-      )}
     </div>
   );
 };

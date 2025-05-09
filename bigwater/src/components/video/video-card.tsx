@@ -82,7 +82,7 @@ export function VideoCard({
   const videoStatus = video.status || video.production_status || 'À préparer';
   const linkPath = href || (video.id ? `/dashboard/videos/${video.id}` : '/dashboard/videos');
   
-  // Formater l'identifiant selon le format standardisé #A-2
+  // Formater l'identifiant selon le format simplifié A1, A2, etc.
   const formatVideoIdentifier = () => {
     const categoryId = video.category?.identifier || video.category_id;
     const videoId = video.identifier || 'N/A';
@@ -101,7 +101,7 @@ export function VideoCard({
       categoryPrefix = categoryId;
     }
     
-    return `#${categoryPrefix}-${videoId}`;
+    return `${categoryPrefix}${videoId}`;
   };
   
   const videoIdentifier = formatVideoIdentifier();
@@ -288,8 +288,8 @@ export function VideoCard({
               
               <span 
                 className={cn(
-                  "text-muted-foreground font-mono",
-                  isMobile ? "text-xs text-neutral-500" : "text-xs"
+                  "text-muted-foreground font-mono font-bold",
+                  isMobile ? "text-base text-white bg-black/20 px-1.5 py-0.5 rounded" : "text-sm"
                 )} 
                 aria-label={`Identifiant: ${videoIdentifier}`}
               >

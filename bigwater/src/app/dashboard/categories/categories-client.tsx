@@ -532,8 +532,8 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                                       {category.title}
                                     </CardTitle>
                                     {category.identifier && (
-                                      <Badge variant="outline" className="shrink-0">
-                                        #{category.identifier}
+                                      <Badge variant="outline" className="shrink-0 text-base font-semibold">
+                                        {category.identifier}
                                       </Badge>
                                     )}
                                   </div>
@@ -549,8 +549,8 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
                                           <div key={video.videoId} className="flex items-center gap-1 text-xs p-1 pl-2 bg-background rounded">
                                             <span className="line-clamp-1 flex-1">{video.videoTitle}</span>
                                             {video.videoIdentifier && (
-                                              <Badge variant="outline" className="h-5 text-[10px]">
-                                                #{video.videoIdentifier}
+                                              <Badge variant="outline" className="h-5 text-xs font-bold">
+                                                {video.videoIdentifier}
                                               </Badge>
                                             )}
                                           </div>

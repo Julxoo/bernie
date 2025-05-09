@@ -1,6 +1,5 @@
 "use client";
 
-import { FolderIcon } from '@heroicons/react/24/outline';
 import { FolderIcon as FolderIconSolid } from '@heroicons/react/24/solid';
 import { VideoCameraIcon as VideoCameraIconSolid } from '@heroicons/react/24/solid';
 import Link from 'next/link';
@@ -40,6 +39,31 @@ export const SearchResults = forwardRef<HTMLDivElement, SearchResultsProps>(
       return null;
     }
 
+    // Helper function to extract the full reference (letter + number)
+    const getFullReference = (result: SearchResult) => {
+      if (result.type === 'video') {
+        // Si l'identifiant de la vidéo est un nombre et que la catégorie a un identifiant (lettre)
+        if (typeof result.identifier === 'number' && result.categoryInfo?.identifier) {
+          return `${result.categoryInfo.identifier}${result.identifier}`;
+        }
+        // Si l'identifiant de la vidéo est déjà au format lettre+nombre
+        else if (typeof result.identifier === 'string' && /^[A-Za-z]\d+$/.test(result.identifier)) {
+          return result.identifier;
+        }
+        // Si l'identifiant est un nombre simple
+        else if (typeof result.identifier === 'number' || (typeof result.identifier === 'string' && !isNaN(Number(result.identifier)))) {
+          // Chercher d'abord l'identifiant de la catégorie
+          if (result.categoryInfo?.identifier) {
+            return `${result.categoryInfo.identifier}${result.identifier}`;
+          }
+          return `${result.identifier}`;
+        }
+        // Fallback
+        return result.identifier || `${result.id}`;
+      }
+      return result.identifier;
+    };
+
     return (
       <div 
         ref={ref}
@@ -49,54 +73,51 @@ export const SearchResults = forwardRef<HTMLDivElement, SearchResultsProps>(
         )}
       >
         <div className="divide-y">
-          {results.map((result) => (
-            <Link
-              key={`${result.type}-${result.id}`}
-              href={result.url}
-              onClick={onResultClick}
-              className="flex items-start gap-3 py-3 px-4 hover:bg-muted transition-colors rounded-md"
-            >
-              {result.type === 'category' ? (
-                <div className="flex-shrink-0 mt-1">
-                  <div className="bg-blue-50 dark:bg-blue-950 p-1.5 rounded-md">
-                    <FolderIconSolid className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-shrink-0 mt-1">
-                  <div className="bg-red-50 dark:bg-red-950 p-1.5 rounded-md">
-                    <VideoCameraIconSolid className="h-4 w-4 text-red-600 dark:text-red-400" />
-                  </div>
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-medium truncate">{result.title}</h4>
-                  <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                    {result.type === 'category' ? 'Catégorie' : 'Vidéo'}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground mt-1 flex flex-col space-y-0.5">
-                  {result.type === 'category' ? (
-                    <span>Identifiant: {result.identifier}</span>
-                  ) : (
-                    <>
-                      <span>ID: {result.id}</span>
-                      {result.categoryInfo && (
-                        <span className="flex items-center gap-1">
-                          <FolderIcon className="h-3 w-3 text-blue-500" />
-                          <span className="truncate">
-                            {result.categoryInfo.title || `Catégorie ${result.categoryInfo.id}`}
-                            {result.categoryInfo.identifier && ` (${result.categoryInfo.identifier})`}
-                          </span>
+          {results.map((result) => {
+            // Debug: Afficher la valeur exacte de l'identifiant pour chaque résultat
+            console.log(`Result ID: ${result.id}, Type: ${result.type}, Identifier:`, result.identifier);
+            
+            return (
+              <Link
+                key={`${result.type}-${result.id}`}
+                href={result.url}
+                onClick={onResultClick}
+                className="flex items-center gap-3 py-2 px-3 hover:bg-muted transition-colors rounded-md"
+              >
+                {result.type === 'category' ? (
+                  <>
+                    <div className="flex-shrink-0">
+                      <div className="bg-blue-50 dark:bg-blue-950 p-1.5 rounded-md">
+                        <FolderIconSolid className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium truncate">{result.title}</h4>
+                      {result.identifier && (
+                        <span className="text-xs text-muted-foreground">
+                          Identifiant: <span className="font-bold text-primary">{result.identifier}</span>
                         </span>
                       )}
-                    </>
-                  )}
-                </div>
-              </div>
-            </Link>
-          ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex-shrink-0">
+                      <div className="bg-red-50 dark:bg-red-950 p-1.5 rounded-md">
+                        <VideoCameraIconSolid className="h-4 w-4 text-red-600 dark:text-red-400" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-lg text-primary tracking-wide">
+                        {getFullReference(result)}
+                      </span>
+                      <span className="text-xs text-muted-foreground truncate max-w-[280px]">{result.title}</span>
+                    </div>
+                  </>
+                )}
+              </Link>
+            );
+          })}
         </div>
       </div>
     );

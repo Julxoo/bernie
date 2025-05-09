@@ -99,7 +99,7 @@ export function PageHeaderEnhanced({
             <div className="flex items-center flex-wrap gap-2">
               <h1 className="text-xl font-bold md:text-3xl">{title}</h1>
               {badge && (
-                <Badge variant={badge.variant || "outline"} className="ml-0 md:ml-2 text-xs">
+                <Badge variant={badge.variant || "outline"} className="ml-0 md:ml-2 text-base font-semibold">
                   {badge.text}
                 </Badge>
               )}

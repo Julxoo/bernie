@@ -168,13 +168,13 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
             categoryPrefix = catIdentifier.toString();
           }
           
-          setPreviewIdentifier(`#${categoryPrefix}-${nextId}`);
+          setPreviewIdentifier(`${categoryPrefix}${nextId}`);
         } catch (error) {
           console.error("Erreur lors de la conversion de l'identifiant:", error);
-          setPreviewIdentifier(`#${catIdentifier}-${nextId}`);
+          setPreviewIdentifier(`${catIdentifier}${nextId}`);
         }
       } else {
-        setPreviewIdentifier(`#?-${nextId}`);
+        setPreviewIdentifier(`?${nextId}`);
         console.error("Identifiant de catégorie manquant:", catData);
       }
     } catch (err) {

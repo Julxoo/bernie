@@ -379,6 +379,7 @@ export default function CategoryPage() {
         title={category?.title || 'Catégorie'}
         description={category?.description || 'Gérez les vidéos de cette catégorie'}
         icon={<Folder className="h-6 w-6" />}
+        badge={category?.identifier ? { text: `${category.identifier}`, variant: "outline" } : undefined}
         breadcrumbs={[
           { title: 'Accueil', href: '/dashboard' },
           { title: 'Catégories', href: '/dashboard/categories' },

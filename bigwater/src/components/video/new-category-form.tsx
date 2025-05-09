@@ -121,7 +121,7 @@ export function NewCategoryForm({ onSuccess }: NewCategoryFormProps) {
           <CardContent className="p-4">
             <Label className="text-sm font-medium">Identifiant de catégorie</Label>
             <div className="flex items-center mt-2">
-              <div className="bg-primary text-primary-foreground w-10 h-10 rounded-md flex items-center justify-center text-lg font-bold">
+              <div className="bg-primary text-primary-foreground w-12 h-12 rounded-md flex items-center justify-center text-2xl font-bold shadow-sm">
                 {isLoading ? '...' : nextIdentifier}
               </div>
               <span className="ml-3 text-sm text-muted-foreground">

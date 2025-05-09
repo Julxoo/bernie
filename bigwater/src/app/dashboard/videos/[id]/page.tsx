@@ -138,12 +138,32 @@ export default async function VideoDetailPage({
     // Définir le chemin de retour
     const returnUrl = category ? `/dashboard/categories/${category.id}` : '/dashboard/videos';
 
+    // Formater l'identifiant complet (lettre de catégorie + identifiant de vidéo)
+    const formatVideoIdentifier = (): string => {
+      if (!video.identifier) return "";
+      
+      const categoryId = category?.identifier as string | number | undefined;
+      if (!categoryId) return `${video.identifier}`;
+      
+      // Convertir l'identifiant de catégorie en lettre si c'est un nombre
+      let categoryPrefix: string;
+      if (typeof categoryId === 'number') {
+        categoryPrefix = String.fromCharCode(64 + categoryId);
+      } else if (typeof categoryId === 'string' && categoryId.length === 1) {
+        categoryPrefix = categoryId.toUpperCase();
+      } else {
+        categoryPrefix = String(categoryId);
+      }
+      
+      return `${categoryPrefix}${video.identifier}`;
+    };
+
     // Tout s'est bien passé, retournons les données
     return (
       <PageContainer>
         <EnhancedPageHeader
           title={video.title}
-          badge={video.identifier ? { text: `#${video.identifier}`, variant: "outline" } : undefined}
+          badge={video.identifier ? { text: formatVideoIdentifier(), variant: "outline" } : undefined}
           breadcrumbs={[
             { title: "Accueil", href: "/dashboard/dashboard" },
             { title: "Vidéos", href: "/dashboard/videos" },

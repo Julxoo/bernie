@@ -40,7 +40,7 @@ export function useSearch() {
 
   useEffect(() => {
     async function performSearch() {
-      if (!query || query.length < 2) {
+      if (!query || query.length < 1) {
         setResults([]);
         return;
       }
@@ -51,15 +51,15 @@ export function useSearch() {
         const { data: categories, error: categoriesError } = await supabase
           .from('video_categories')
           .select('id, title, identifier')
-          .ilike('title', `%${query}%`)
+          .or(`title.ilike.%${query}%, identifier.ilike.%${query}%`)
           .limit(5);
 
         if (categoriesError) {
           throw categoriesError;
         }
 
-        // Recherche dans les vidéos avec jointure pour obtenir les infos de catégorie
-        const { data: videos, error: videosError } = await supabase
+        // Recherche dans les vidéos par titre
+        const { data: videosByTitle, error: videosTitleError } = await supabase
           .from('category_videos')
           .select(`
             id, 
@@ -71,9 +71,66 @@ export function useSearch() {
           .ilike('title', `%${query}%`)
           .limit(5);
 
-        if (videosError) {
-          throw videosError;
+        if (videosTitleError) {
+          throw videosTitleError;
         }
+
+        // Ne pas essayer de faire une recherche directe par identifiant alphanumérique
+        // car le champ identifiant est probablement un entier dans la base de données
+        let videosByIdentifier: VideoSearchResult[] = [];
+        // Vérifions si c'est un nombre pur avant de le rechercher comme identifiant
+        if (/^\d+$/.test(query)) {
+          const { data, error } = await supabase
+            .from('category_videos')
+            .select(`
+              id, 
+              title, 
+              identifier, 
+              category_id,
+              video_categories!inner(id, title, identifier)
+            `)
+            .eq('identifier', query)
+            .limit(5);
+
+          if (!error && data) {
+            videosByIdentifier = data as VideoSearchResult[];
+          }
+        }
+
+        // Recherche spéciale pour les identifiants combinés (ex: A1, B2)
+        // Si le format semble être une lettre suivie de chiffres (ex: A1, B2, C10)
+        let videosByComboIdentifier: VideoSearchResult[] = [];
+        if (/^[A-Za-z]\d+$/.test(query)) {
+          const letter = query.charAt(0);
+          const number = parseInt(query.substring(1), 10);
+
+          const { data, error } = await supabase
+            .from('category_videos')
+            .select(`
+              id, 
+              title, 
+              identifier, 
+              category_id,
+              video_categories!inner(id, title, identifier)
+            `)
+            .eq('identifier', number.toString())
+            .eq('video_categories.identifier', letter)
+            .limit(5);
+
+          if (!error && data) {
+            videosByComboIdentifier = data as VideoSearchResult[];
+          }
+        }
+
+        // Combiner tous les résultats de vidéos sans duplications
+        const videoIds = new Set();
+        const allVideos = [...videosByTitle, ...videosByIdentifier, ...videosByComboIdentifier].filter(video => {
+          if (videoIds.has(video.id)) {
+            return false;
+          }
+          videoIds.add(video.id);
+          return true;
+        });
 
         const formattedResults: SearchResult[] = [
           ...categories.map((category: CategorySearchResult) => ({
@@ -83,7 +140,7 @@ export function useSearch() {
             url: `/dashboard/categories/${category.id}`,
             identifier: category.identifier
           })),
-          ...videos.map((video: VideoSearchResult) => ({
+          ...allVideos.map((video: VideoSearchResult) => ({
             id: video.id,
             title: video.title,
             type: 'video' as SearchResultType,

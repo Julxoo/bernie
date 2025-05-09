@@ -1,6 +1,6 @@
 "use client";
 
-import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
@@ -144,7 +144,6 @@ export function SearchBar({ isMobile = false, onClose, className, onFocus, onBlu
             onClick={handleClearSearch}
             aria-label="Effacer la recherche"
           >
-            <XMarkIcon className="h-4 w-4" />
           </Button>
         )}
         {isMobile && !query && (
@@ -155,7 +154,6 @@ export function SearchBar({ isMobile = false, onClose, className, onFocus, onBlu
             onClick={onClose}
             aria-label="Fermer la recherche"
           >
-            <XMarkIcon className="h-4 w-4" />
           </Button>
         )}
       </div>
