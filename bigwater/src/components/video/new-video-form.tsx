@@ -35,6 +35,7 @@ const videoFormSchema = z.object({
   category_id: z.string().min(1, "La catégorie est requise"),
   instructions_miniature: z.string().optional(),
   rush_links: z.array(z.string()).optional(),
+  note: z.string().optional(),
 });
 
 type VideoFormValues = z.infer<typeof videoFormSchema>;
@@ -68,6 +69,7 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
       category_id: categoryId ? String(categoryId) : "",
       instructions_miniature: "",
       rush_links: [],
+      note: "",
     },
   });
 
@@ -232,6 +234,7 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
         production_status: "À préparer" as VideoStatus,
         instructions_miniature: data.instructions_miniature || undefined,
         rush_link: data.rush_links && data.rush_links.length > 0 ? data.rush_links : undefined,
+        note: data.note || undefined,
       });
 
       toast.success("Vidéo créée avec succès");
@@ -343,6 +346,25 @@ export function NewVideoForm({ categoryId, onSuccess }: NewVideoFormProps) {
               <p className="text-xs text-muted-foreground mt-1">
                 Saisissez un lien par ligne. Les liens vides seront ignorés.
               </p>
+            </FormItem>
+          )}
+        />
+
+        {/* Note */}
+        <FormField
+          control={form.control}
+          name="note"
+          render={({ field }) => (
+            <FormItem className="w-full">
+              <FormLabel className="text-base font-medium">Note</FormLabel>
+              <FormControl>
+                <Textarea 
+                  placeholder="Ajoutez une note pour cette vidéo..." 
+                  className="resize-y min-h-[80px] w-full text-base"
+                  {...field} 
+                />
+              </FormControl>
+              <FormMessage />
             </FormItem>
           )}
         />

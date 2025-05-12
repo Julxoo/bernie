@@ -80,7 +80,8 @@ export default async function VideoDetailPage({
         miniature_link: details.miniature_link ?? (cat as CategoryVideo & { link_miniature?: string | null }).link_miniature ?? null,
         created_at: details.created_at ?? cat.created_at,
         updated_at: details.updated_at ?? cat.updated_at,
-        edit_notes: details.edit_notes ?? null
+        edit_notes: details.edit_notes ?? null,
+        note: details.note ?? null
       } as VideoDetails;
 
       video = videoData as CategoryVideo & { video_details: VideoDetails };
@@ -109,7 +110,8 @@ export default async function VideoDetailPage({
         instructions_miniature: null,
         created_at: video.created_at,
         updated_at: video.updated_at,
-        edit_notes: null
+        edit_notes: null,
+        note: null
       };
     }
 

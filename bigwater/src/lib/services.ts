@@ -269,6 +269,7 @@ export const videoService = {
             production_status: videoData.production_status,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
+            note: null,
             ...partialData
           })
           .select()
@@ -296,6 +297,30 @@ export const videoService = {
     if (error) throw error;
 
     return { success: true };
+  },
+
+  // Mettre à jour la note d'une vidéo
+  async updateVideoNote(videoId: number, note: string) {
+    try {
+      // S'assurer que l'enregistrement video_details existe
+      await this._ensureVideoDetailsExist(videoId);
+      
+      // Mise à jour de la note
+      const { error } = await supabase
+        .from('video_details')
+        .update({ 
+          note: note, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('category_video_id', videoId);
+      
+      if (error) throw error;
+      
+      return { success: true };
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour de la note:", error);
+      throw error;
+    }
   },
 
   // Mettre à jour les instructions de miniature
@@ -382,6 +407,7 @@ export const videoService = {
       video_link?: string;
       miniature_link?: string;
       instructions_miniature?: string;
+      note?: string;
     }
   ) {
     // 1. Obtenir le prochain identifiant pour cette catégorie
@@ -431,6 +457,7 @@ export const videoService = {
         video_link: videoData.video_link || null,
         miniature_link: videoData.miniature_link || null,
         instructions_miniature: videoData.instructions_miniature || null,
+        note: videoData.note || null,
       })
       .select()
       .single();

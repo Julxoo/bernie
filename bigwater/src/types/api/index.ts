@@ -70,6 +70,7 @@ export interface VideoDetails {
   created_at: string | null;
   updated_at: string | null;
   edit_notes: string | null;
+  note: string | null;
 }
 
 export interface UserActivity {

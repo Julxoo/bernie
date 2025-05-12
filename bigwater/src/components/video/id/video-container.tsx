@@ -27,6 +27,7 @@ import { Textarea } from '@/components/ui/inputs/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/overlays/tooltip';
 import { videoService } from '@/lib/services';
 import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/client';
 
 // Inline Edit Component
 interface InlineEditProps {
@@ -611,15 +612,11 @@ export function VideoContainer({
       video_link: null,
       miniature_link: null,
       instructions_miniature: null,
+      note: null,
       created_at: video.created_at,
       updated_at: video.updated_at
     }
   });
-
-  const [currentStatus, setCurrentStatus] = useState<VideoStatus>(video.production_status);
-  // Variables définies mais non utilisées pour le moment
-  const [/* isStatusChanging */, /* setIsStatusChanging */] = useState(false);
-  const [showCompletionOverlay, setShowCompletionOverlay] = useState(false);
   
   // Gestion des données vidéo
   const [videoTitle, setVideoTitle] = useState(video.title);
@@ -633,6 +630,12 @@ export function VideoContainer({
   );
   const [videoMiniatureLink, setVideoMiniatureLink] = useState(video.video_details?.miniature_link || '');
   const [videoLink, setVideoLink] = useState(video.video_details?.video_link || '');
+  const [videoNote, setVideoNote] = useState(video.video_details?.note || '');
+  const [currentStatus, setCurrentStatus] = useState<VideoStatus>(video.production_status);
+  
+  // Variables définies mais non utilisées pour le moment
+  const [/* isStatusChanging */, /* setIsStatusChanging */] = useState(false);
+  const [showCompletionOverlay, setShowCompletionOverlay] = useState(false);
   
   // Information de statut conservée pour référence future mais non utilisée
   // const __statusInfo = STATUSES.find(s => s.value === currentStatus) || STATUSES[0];
@@ -902,6 +905,48 @@ export function VideoContainer({
     }
   };
 
+  // Gestionnaire de mise à jour pour la note
+  const handleNoteUpdate = async (newNote: string) => {
+    setVideoNote(newNote);
+    
+    try {
+      const supabase = createClient();
+      await videoService._ensureVideoDetailsExist(video.id);
+      
+      const { error } = await supabase
+        .from('video_details')
+        .update({ 
+          note: newNote, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('category_video_id', video.id);
+        
+      if (error) {
+        console.error('Erreur lors de la mise à jour de la note:', error);
+        toast.error('Échec de la mise à jour de la note');
+        // Revert if API call fails
+        setVideoNote(video.video_details?.note || '');
+        return;
+      }
+      
+      // Mettre à jour videoWithDetails après succès
+      setVideoWithDetails(prev => ({
+        ...prev,
+        video_details: {
+          ...prev.video_details,
+          note: newNote
+        }
+      }));
+      
+      toast.success('Note mise à jour avec succès');
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la note:', error);
+      toast.error('Échec de la mise à jour de la note');
+      // Revert if API call fails
+      setVideoNote(video.video_details?.note || '');
+    }
+  };
+
   // Afficher l'overlay si la vidéo est déjà en statut "Upload" lors de l'ouverture
   useEffect(() => {
     if (currentStatus === 'Upload') {
@@ -1085,6 +1130,23 @@ export function VideoContainer({
             </div>
           </Card>
         </div>
+
+        {/* Note section */}
+        <Card className="bg-background shadow-sm">
+          <div className="p-3 sm:p-4">
+            <h3 className="font-medium text-lg mb-3">Note</h3>
+            <div className="text-sm">
+              <InlineEdit
+                value={videoNote}
+                onSave={handleNoteUpdate}
+                placeholder="Ajouter une note pour cette vidéo..."
+                multiline={true}
+                rows={3}
+                className="w-full"
+              />
+            </div>
+          </div>
+        </Card>
 
         {/* Description vidéo (7 cols on desktop, full width on mobile) */}
         <Card className="md:col-span-7 bg-background shadow-sm">
