@@ -364,10 +364,46 @@ export default function VideosPage() {
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      results = results.filter(video => 
+      
+      // Recherche standard par titre ou description
+      const filteredResults = results.filter(video => 
         video.title.toLowerCase().includes(query) || 
         (video.description && video.description.toLowerCase().includes(query))
       );
+      
+      // Recherche par identifiant numérique exact
+      if (/^\d+$/.test(query)) {
+        const numericMatches = results.filter(video => 
+          video.identifier?.toString() === query
+        );
+        
+        // Ajouter les résultats sans duplication
+        numericMatches.forEach(match => {
+          if (!filteredResults.some(v => v.id === match.id)) {
+            filteredResults.push(match);
+          }
+        });
+      }
+      
+      // Recherche par identifiant combiné (ex: A1, B2, C10)
+      if (/^[A-Za-z]\d+$/.test(query)) {
+        const letter = query.charAt(0).toUpperCase();
+        const number = parseInt(query.substring(1), 10);
+        
+        const comboMatches = results.filter(video => 
+          video.category?.identifier?.toString().toUpperCase() === letter && 
+          video.identifier?.toString() === number.toString()
+        );
+        
+        // Ajouter les résultats sans duplication
+        comboMatches.forEach(match => {
+          if (!filteredResults.some(v => v.id === match.id)) {
+            filteredResults.push(match);
+          }
+        });
+      }
+      
+      results = filteredResults;
     }
 
     results = sortVideos(results, dateSort);
