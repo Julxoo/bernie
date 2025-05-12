@@ -230,16 +230,17 @@ export   const InlineEdit: React.FC<InlineEditProps> = ({
       return (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center flex-wrap gap-2">
-            <button 
-              type="button"
+            <a 
+              href={content}
+              target="_blank" 
+              rel="noopener noreferrer"
               className="inline-flex items-center text-xs font-medium text-primary rounded px-2 py-1 transition-colors border border-primary/20 hover:border-primary/40 bg-transparent touch-manipulation"
               onClick={(e) => {
                 e.stopPropagation();
-                window.open(content, '_blank', 'noopener,noreferrer');
               }}
             >
               <span>Voir le lien</span>
-            </button>
+            </a>
             <button
               type="button"
               className="text-xs text-muted-foreground hover:text-primary transition-colors px-1 py-0.5 touch-manipulation"
