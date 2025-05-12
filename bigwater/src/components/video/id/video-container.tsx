@@ -979,7 +979,7 @@ export function VideoContainer({
             <div className="flex items-center gap-2">
               <FileVideo className="h-4 w-4" />
               <span className="font-medium">
-                {category?.identifier || '-'}/{video.identifier || '-'}
+                {category?.identifier || '-'}{video.identifier || '-'}
               </span>
             </div>
           </div>
